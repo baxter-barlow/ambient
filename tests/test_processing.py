@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from ambient.processing.fft import RangeFFT, DopplerFFT, RangeFFTConfig, DopplerFFTConfig
-from ambient.processing.clutter import ClutterRemoval, MTIFilter, MovingAverageClutter
+from ambient.processing.clutter import ClutterRemoval, MovingAverageClutter, MTIFilter
+from ambient.processing.fft import DopplerFFT, DopplerFFTConfig, RangeFFT, RangeFFTConfig
 
 
 class TestRangeFFT:

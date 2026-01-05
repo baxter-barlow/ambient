@@ -6,7 +6,7 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-from .schemas import SensorFrame, VitalSigns, DetectedPoint
+from .schemas import DetectedPoint, VitalSigns
 
 if TYPE_CHECKING:
 	from .state import AppState

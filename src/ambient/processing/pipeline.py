@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import numpy as np
-from numpy.typing import NDArray
 import structlog
+from numpy.typing import NDArray
 
 from ambient.processing.clutter import ClutterRemoval
 from ambient.processing.fft import RangeDopplerProcessor
@@ -70,7 +70,7 @@ class ProcessingPipeline:
 
 	def process(self, frame: RadarFrame) -> ProcessedFrame:
 		result = ProcessedFrame(
-			frame_number=frame.header.frame_number,
+			frame_number=frame.header.frame_number if frame.header else 0,
 			timestamp=frame.timestamp,
 		)
 

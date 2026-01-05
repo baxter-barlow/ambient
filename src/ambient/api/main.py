@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -10,11 +9,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from .routes import device, recordings, config, params, tests
-from .ws import sensor, logs, tests as ws_tests
-from .ws.logs import setup_log_handler
+from .routes import config, device, params, recordings, tests
 from .state import get_app_state
 from .tasks import start_acquisition, stop_acquisition
+from .ws import logs, sensor
+from .ws import tests as ws_tests
+from .ws.logs import setup_log_handler
 from .ws.manager import manager
 
 # Configure logging
