@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 
 import aiofiles
-
 from fastapi import APIRouter, HTTPException
 
 from ..schemas import ChirpParams, ConfigProfile, FrameParams
