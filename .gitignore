@@ -32,6 +32,7 @@ dashboard/dist/
 dashboard/.vite/
 
 # Local dev settings
+.githooks/
 .claude/
 CLAUDE.md
 AGENTS.md
