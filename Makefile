@@ -27,7 +27,7 @@ clean:
 
 # Dashboard targets (native)
 dashboard:
-	$(MAKE) -j2 dashboard-backend dashboard-frontend
+	./scripts/dev.sh
 
 dashboard-backend:
 	cd $(CURDIR) && uvicorn ambient.api.main:app --reload --port 8000
