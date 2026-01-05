@@ -34,6 +34,23 @@ class ConnectRequest(BaseModel):
 	config: str | None = None  # config profile name or path
 
 
+class PortVerifyRequest(BaseModel):
+	cli_port: str
+	data_port: str
+
+
+class PortStatus(BaseModel):
+	path: str
+	status: str  # ok, warning, error
+	details: str
+
+
+class PortVerifyResult(BaseModel):
+	cli_port: PortStatus
+	data_port: PortStatus
+	overall: str  # pass, warning, fail
+
+
 class SerialPort(BaseModel):
 	device: str
 	description: str

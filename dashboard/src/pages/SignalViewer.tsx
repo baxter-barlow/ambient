@@ -143,26 +143,26 @@ export default function SignalViewer() {
 			<div className="grid grid-cols-2 gap-4">
 				<RangeProfile
 					data={latestFrame?.range_profile ?? []}
-					width={550}
-					height={200}
+					width={580}
+					height={280}
 				/>
 				<RangeDoppler
 					data={latestFrame?.range_doppler}
-					width={250}
-					height={200}
+					width={280}
+					height={280}
 				/>
 				<PhaseSignal
 					timestamps={phaseData.timestamps}
 					phases={phaseData.phases}
-					width={550}
-					height={200}
+					width={580}
+					height={280}
 				/>
 				<VitalsChart
 					timestamps={vitalsData.timestamps}
 					heartRates={vitalsData.heartRates}
 					respiratoryRates={vitalsData.respiratoryRates}
-					width={550}
-					height={200}
+					width={580}
+					height={280}
 				/>
 			</div>
 		</div>

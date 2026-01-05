@@ -4,7 +4,8 @@ import { deviceApi } from '../api/client'
 import Button from '../components/common/Button'
 import Select from '../components/common/Select'
 import StatusIndicator from '../components/common/StatusIndicator'
-import type { SerialPort } from '../types'
+import type { SerialPort, PortVerifyResult } from '../types'
+import clsx from 'clsx'
 
 export default function DeviceStatus() {
 	const deviceStatus = useAppStore(s => s.deviceStatus)
@@ -13,6 +14,8 @@ export default function DeviceStatus() {
 	const [dataPort, setDataPort] = useState('/dev/ttyUSB1')
 	const [loading, setLoading] = useState(false)
 	const [error, setError] = useState<string | null>(null)
+	const [verifying, setVerifying] = useState(false)
+	const [verifyResult, setVerifyResult] = useState<PortVerifyResult | null>(null)
 
 	useEffect(() => {
 		deviceApi.getPorts().then(setPorts).catch(() => {})
@@ -53,7 +56,22 @@ export default function DeviceStatus() {
 		}
 	}
 
+	const handleVerify = async () => {
+		setVerifying(true)
+		setVerifyResult(null)
+		setError(null)
+		try {
+			const result = await deviceApi.verifyPorts(cliPort, dataPort)
+			setVerifyResult(result)
+		} catch (e) {
+			setError(e instanceof Error ? e.message : 'Verification failed')
+		} finally {
+			setVerifying(false)
+		}
+	}
+
 	const isConnected = deviceStatus?.state === 'streaming' || deviceStatus?.state === 'configuring'
+	const canConnect = verifyResult?.overall === 'pass' || verifyResult?.overall === 'warning'
 	const portOptions = ports.length > 0
 		? ports.map(p => ({ value: p.device, label: p.device }))
 		: [
@@ -144,20 +162,62 @@ export default function DeviceStatus() {
 			{!isConnected && (
 				<div className="bg-gray-800 rounded-lg p-4">
 					<h3 className="text-lg font-medium mb-4">Serial Port Selection</h3>
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid grid-cols-2 gap-4 mb-4">
 						<Select
 							label="CLI Port"
 							options={portOptions}
 							value={cliPort}
-							onChange={e => setCliPort(e.target.value)}
+							onChange={e => { setCliPort(e.target.value); setVerifyResult(null) }}
 						/>
 						<Select
 							label="Data Port"
 							options={portOptions}
 							value={dataPort}
-							onChange={e => setDataPort(e.target.value)}
+							onChange={e => { setDataPort(e.target.value); setVerifyResult(null) }}
 						/>
 					</div>
+
+					{/* Verification Results */}
+					{verifyResult && (
+						<div className="mt-4 space-y-2">
+							<div className={clsx(
+								'p-3 rounded border',
+								verifyResult.cli_port.status === 'ok' ? 'bg-green-900/30 border-green-700' :
+								verifyResult.cli_port.status === 'warning' ? 'bg-yellow-900/30 border-yellow-700' :
+								'bg-red-900/30 border-red-700'
+							)}>
+								<div className="flex items-center gap-2">
+									<span className={clsx(
+										'text-lg',
+										verifyResult.cli_port.status === 'ok' ? 'text-green-400' :
+										verifyResult.cli_port.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
+									)}>
+										{verifyResult.cli_port.status === 'ok' ? '✓' : verifyResult.cli_port.status === 'warning' ? '⚠' : '✗'}
+									</span>
+									<span className="font-medium">CLI Port: {verifyResult.cli_port.path}</span>
+								</div>
+								<p className="text-sm text-gray-300 mt-1">{verifyResult.cli_port.details}</p>
+							</div>
+							<div className={clsx(
+								'p-3 rounded border',
+								verifyResult.data_port.status === 'ok' ? 'bg-green-900/30 border-green-700' :
+								verifyResult.data_port.status === 'warning' ? 'bg-yellow-900/30 border-yellow-700' :
+								'bg-red-900/30 border-red-700'
+							)}>
+								<div className="flex items-center gap-2">
+									<span className={clsx(
+										'text-lg',
+										verifyResult.data_port.status === 'ok' ? 'text-green-400' :
+										verifyResult.data_port.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
+									)}>
+										{verifyResult.data_port.status === 'ok' ? '✓' : verifyResult.data_port.status === 'warning' ? '⚠' : '✗'}
+									</span>
+									<span className="font-medium">Data Port: {verifyResult.data_port.path}</span>
+								</div>
+								<p className="text-sm text-gray-300 mt-1">{verifyResult.data_port.details}</p>
+							</div>
+						</div>
+					)}
 				</div>
 			)}
 
@@ -171,12 +231,22 @@ export default function DeviceStatus() {
 			{/* Controls */}
 			<div className="flex gap-4">
 				{!isConnected ? (
-					<Button
-						onClick={handleConnect}
-						disabled={loading || deviceStatus?.state === 'connecting'}
-					>
-						{loading ? 'Connecting...' : 'Connect'}
-					</Button>
+					<>
+						<Button
+							variant="secondary"
+							onClick={handleVerify}
+							disabled={verifying || loading}
+						>
+							{verifying ? 'Verifying...' : 'Verify Ports'}
+						</Button>
+						<Button
+							onClick={handleConnect}
+							disabled={loading || !canConnect || deviceStatus?.state === 'connecting'}
+							title={!canConnect ? 'Verify ports first' : undefined}
+						>
+							{loading ? 'Connecting...' : 'Connect'}
+						</Button>
+					</>
 				) : (
 					<Button
 						variant="secondary"

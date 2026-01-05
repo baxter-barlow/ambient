@@ -48,19 +48,21 @@ export default function RangeDoppler({ data, width = 300, height = 300 }: Props)
 	}, [data, width, height])
 
 	return (
-		<div className="bg-gray-800 rounded-lg p-2">
+		<div className="bg-gray-800 rounded-lg p-3">
 			<div className="text-sm text-gray-400 mb-2">Range-Doppler Map</div>
-			<canvas
-				ref={canvasRef}
-				width={width}
-				height={height}
-				className="border border-gray-700"
-			/>
-			{(!data || data.length === 0) && (
-				<div className="absolute inset-0 flex items-center justify-center text-gray-500">
-					No data
-				</div>
-			)}
+			<div className="relative">
+				<canvas
+					ref={canvasRef}
+					width={width}
+					height={height}
+					className="border border-gray-700"
+				/>
+				{(!data || data.length === 0) && (
+					<div className="absolute inset-0 flex items-center justify-center text-gray-500 bg-gray-900/50">
+						No data
+					</div>
+				)}
+			</div>
 		</div>
 	)
 }
