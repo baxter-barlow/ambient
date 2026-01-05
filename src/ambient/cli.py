@@ -183,9 +183,8 @@ def info(cli_port: str, data_port: str) -> None:
 		t.add_column("Property", style="cyan")
 		t.add_column("Value", style="green")
 
-		for k, v in {**version, **status}.items():
-			if v:
-				t.add_row(k, str(v))
+		t.add_row("Firmware Version", version.strip() if version else "N/A")
+		t.add_row("Status", status.strip() if status else "N/A")
 
 		console.print(t)
 	except Exception as e:

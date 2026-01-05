@@ -72,7 +72,7 @@ async def run_tests_streaming(websocket: WebSocket, modules: list[str], include_
 	)
 
 	# Stream output line by line
-	while True:
+	while proc.stdout:
 		line = await proc.stdout.readline()
 		if not line:
 			break

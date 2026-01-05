@@ -16,10 +16,11 @@ class WebSocketLogHandler(logging.Handler):
 	"""Log handler that broadcasts to WebSocket clients."""
 
 	def __init__(self, ws_manager, channel: str = "logs"):
+		import asyncio
 		super().__init__()
 		self.ws_manager = ws_manager
 		self.channel = channel
-		self._loop = None
+		self._loop: asyncio.AbstractEventLoop | None = None
 
 	def emit(self, record: logging.LogRecord):
 		import asyncio
