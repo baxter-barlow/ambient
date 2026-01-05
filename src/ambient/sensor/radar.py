@@ -1,30 +1,19 @@
-"""Radar sensor interface for TI IWR6843AOPEVM."""
-
+"""Radar sensor interface for IWR6843AOPEVM."""
 from __future__ import annotations
 
-import glob
-import threading
+import logging
 import time
-from collections.abc import Callable, Generator
-from dataclasses import dataclass
 from pathlib import Path
+from threading import Thread, Event
+from typing import Callable, Iterator
 
 import serial
-import structlog
+import serial.tools.list_ports
 
-from ambient.sensor.config import ChirpConfig, load_config
-from ambient.sensor.frame import FrameBuffer, RadarFrame
+from .config import ChirpConfig, SerialConfig, load_config_file, create_vital_signs_config
+from .frame import FrameBuffer, RadarFrame
 
-logger = structlog.get_logger(__name__)
-
-
-@dataclass
-class SerialConfig:
-	cli_port: str = "/dev/ttyUSB0"
-	data_port: str = "/dev/ttyUSB1"
-	cli_baudrate: int = 115200
-	data_baudrate: int = 921600
-	timeout: float = 1.0
+logger = logging.getLogger(__name__)
 
 
 class RadarSensor:
@@ -34,224 +23,229 @@ class RadarSensor:
 	Use as context manager for automatic cleanup.
 	"""
 
-	def __init__(
-		self,
-		cli_port: str = "/dev/ttyUSB0",
-		data_port: str = "/dev/ttyUSB1",
-		cli_baudrate: int = 115200,
-		data_baudrate: int = 921600,
-	) -> None:
-		self._config = SerialConfig(
-			cli_port=cli_port,
-			data_port=data_port,
-			cli_baudrate=cli_baudrate,
-			data_baudrate=data_baudrate,
-		)
-		self._cli_serial: serial.Serial | None = None
-		self._data_serial: serial.Serial | None = None
-		self._frame_buffer = FrameBuffer()
-		self._is_running = False
-		self._streaming = False
-		self._read_thread: threading.Thread | None = None
-		self._frame_callbacks: list[Callable[[RadarFrame], None]] = []
+	def __init__(self, config: SerialConfig | None = None):
+		self._config = config or SerialConfig()
+		self._cli: serial.Serial | None = None
+		self._data: serial.Serial | None = None
+		self._buffer = FrameBuffer()
+		self._running = False
+		self._stream_thread: Thread | None = None
+		self._stop_event = Event()
+		self._callbacks: list[Callable[[RadarFrame], None]] = []
 
-		logger.info("sensor_init", cli_port=cli_port, data_port=data_port)
+	@property
+	def is_connected(self) -> bool:
+		return self._cli is not None and self._cli.is_open
 
-	def connect(self) -> None:
-		"""Open serial connections."""
-		try:
-			self._cli_serial = serial.Serial(
-				self._config.cli_port,
-				self._config.cli_baudrate,
-				timeout=self._config.timeout,
-			)
-			self._data_serial = serial.Serial(
-				self._config.data_port,
-				self._config.data_baudrate,
-				timeout=self._config.timeout,
-			)
-			self._cli_serial.reset_input_buffer()
-			self._data_serial.reset_input_buffer()
-			logger.info("connected")
-		except serial.SerialException as e:
-			logger.error("connection_failed", error=str(e))
-			self.disconnect()
-			raise ConnectionError(f"Failed to connect: {e}") from e
+	@property
+	def is_running(self) -> bool:
+		return self._running
 
-	def disconnect(self) -> None:
+	@staticmethod
+	def find_ports() -> dict[str, str]:
+		"""Find radar serial ports. Returns {'cli': ..., 'data': ...}."""
+		ports = list(serial.tools.list_ports.comports())
+
+		# Look for XDS or ACM devices (TI evaluation boards)
+		ti_ports = [p for p in ports if "XDS" in (p.description or "") or "ACM" in p.device]
+		if len(ti_ports) >= 2:
+			ti_ports.sort(key=lambda p: p.device)
+			return {"cli": ti_ports[0].device, "data": ti_ports[1].device}
+
+		# Fallback to ttyUSB devices
+		usb_ports = [p for p in ports if "ttyUSB" in p.device]
+		if len(usb_ports) >= 2:
+			usb_ports.sort(key=lambda p: p.device)
+			return {"cli": usb_ports[0].device, "data": usb_ports[1].device}
+
+		return {}
+
+	def connect(self):
+		"""Open serial connections to the radar."""
+		if self.is_connected:
+			return
+
+		# Auto-detect ports if not specified
+		cli_port = self._config.cli_port
+		data_port = self._config.data_port
+
+		if not cli_port or not data_port or cli_port == data_port:
+			ports = self.find_ports()
+			if not ports:
+				raise RuntimeError(
+					"Could not find radar ports. Check:\n"
+					"  1. USB cable is connected\n"
+					"  2. User is in 'dialout' group\n"
+					"  3. Device is powered on"
+				)
+			cli_port = ports["cli"]
+			data_port = ports["data"]
+
+		logger.info(f"Connecting: CLI={cli_port}, Data={data_port}")
+
+		self._cli = serial.Serial(cli_port, self._config.cli_baud, timeout=self._config.timeout)
+		self._data = serial.Serial(data_port, self._config.data_baud, timeout=0.1)
+
+		time.sleep(0.1)
+		self._flush()
+
+	def disconnect(self):
 		"""Close serial connections."""
 		self.stop()
-		if self._cli_serial and self._cli_serial.is_open:
-			self._cli_serial.close()
-			self._cli_serial = None
-		if self._data_serial and self._data_serial.is_open:
-			self._data_serial.close()
-			self._data_serial = None
-		logger.info("disconnected")
+		if self._cli and self._cli.is_open:
+			self._cli.close()
+		if self._data and self._data.is_open:
+			self._data.close()
+		self._cli = None
+		self._data = None
+		logger.info("Disconnected")
 
-	def configure(self, config: str | Path | ChirpConfig | list[str]) -> None:
-		"""Send configuration to radar."""
-		if not self._cli_serial or not self._cli_serial.is_open:
+	def _flush(self):
+		if self._cli:
+			self._cli.reset_input_buffer()
+			self._cli.reset_output_buffer()
+		if self._data:
+			self._data.reset_input_buffer()
+
+	def send_command(self, cmd: str, timeout: float = 0.1) -> str:
+		"""Send a CLI command and return response."""
+		if not self._cli:
 			raise RuntimeError("Not connected")
 
-		if isinstance(config, (str, Path)):
-			commands = load_config(config)
-		elif isinstance(config, ChirpConfig):
+		self._cli.reset_input_buffer()
+		self._cli.write(f"{cmd}\n".encode())
+		time.sleep(timeout)
+
+		return self._cli.read(self._cli.in_waiting).decode("utf-8", errors="ignore")
+
+	def configure(self, config: str | Path | ChirpConfig | list[str]):
+		"""Send configuration to the radar."""
+		if isinstance(config, ChirpConfig):
 			commands = config.to_commands()
+		elif isinstance(config, list):
+			commands = config
+		elif isinstance(config, (str, Path)):
+			commands = load_config_file(config)
 		else:
-			commands = list(config)
+			raise TypeError(f"Invalid config type: {type(config)}")
 
-		logger.info("configuring", num_commands=len(commands))
+		logger.info(f"Sending {len(commands)} configuration commands")
+
 		for cmd in commands:
-			self._send_command(cmd)
-		logger.info("configured")
+			response = self.send_command(cmd)
+			if "Error" in response:
+				logger.error(f"Config error: {cmd} -> {response}")
+			time.sleep(0.02)
 
-	def _send_command(self, cmd: str, wait: float = 0.03) -> str:
-		"""Send CLI command and return response."""
-		if not self._cli_serial:
-			raise RuntimeError("CLI serial not connected")
+	def start(self):
+		"""Start the sensor (send sensorStart command)."""
+		if not self.is_connected:
+			raise RuntimeError("Not connected")
+		self.send_command("sensorStart")
+		self._running = True
+		self._buffer.clear()
+		logger.info("Sensor started")
 
-		self._cli_serial.write(f"{cmd}\r\n".encode())
-		time.sleep(wait)
-		response = self._cli_serial.read(1000).decode("utf-8", errors="replace")
+	def stop(self):
+		"""Stop the sensor."""
+		self._running = False
+		self._stop_event.set()
 
-		if "Error" in response:
-			logger.warning("command_error", cmd=cmd, response=response.strip())
-		return response
+		if self._stream_thread and self._stream_thread.is_alive():
+			self._stream_thread.join(timeout=2.0)
+		self._stream_thread = None
+		self._stop_event.clear()
 
-	def start(self) -> None:
-		"""Start sensor acquisition."""
-		if not self._is_running:
-			response = self._send_command("sensorStart")
-			if "Error" not in response:
-				self._is_running = True
-				logger.info("sensor_started")
-			else:
-				raise RuntimeError(f"Failed to start: {response}")
-
-	def stop(self) -> None:
-		"""Stop sensor acquisition."""
-		self._streaming = False
-		if self._read_thread and self._read_thread.is_alive():
-			self._read_thread.join(timeout=2.0)
-			self._read_thread = None
-
-		if self._is_running and self._cli_serial and self._cli_serial.is_open:
-			self._send_command("sensorStop")
-			self._is_running = False
-			logger.info("sensor_stopped")
-		self._frame_buffer.clear()
+		if self.is_connected:
+			try:
+				self.send_command("sensorStop")
+			except Exception:
+				pass
+		logger.info("Sensor stopped")
 
 	def read_frame(self, timeout: float = 1.0) -> RadarFrame | None:
-		"""Read single frame from data port."""
-		if not self._data_serial:
-			raise RuntimeError("Data serial not connected")
+		"""Read a single frame. Returns None if no frame available."""
+		if not self._data:
+			return None
 
 		start = time.time()
 		while time.time() - start < timeout:
-			if self._data_serial.in_waiting > 0:
-				data = self._data_serial.read(self._data_serial.in_waiting)
-				self._frame_buffer.append(data)
+			available = self._data.in_waiting
+			if available:
+				self._buffer.append(self._data.read(available))
 
-			frame = self._frame_buffer.extract_frame()
-			if frame is not None:
+			frame = self._buffer.extract_frame()
+			if frame:
 				return frame
-			time.sleep(0.001)
+
+			time.sleep(0.005)
+
 		return None
 
 	def stream(
-		self,
-		max_frames: int | None = None,
-		duration: float | None = None,
-	) -> Generator[RadarFrame, None, None]:
-		"""Stream radar frames."""
+		self, max_frames: int | None = None, duration: float | None = None
+	) -> Iterator[RadarFrame]:
+		"""Generator that yields frames."""
+		if not self.is_connected:
+			raise RuntimeError("Not connected")
+
 		start = time.time()
 		count = 0
 
-		while True:
-			if max_frames is not None and count >= max_frames:
-				break
-			if duration is not None and time.time() - start >= duration:
-				break
-
+		while self._running:
 			frame = self.read_frame(timeout=0.1)
-			if frame is not None:
-				count += 1
+			if frame:
 				yield frame
+				count += 1
+
+				if max_frames and count >= max_frames:
+					break
+
+			if duration and (time.time() - start) >= duration:
+				break
 
 	def stream_async(
 		self,
 		callback: Callable[[RadarFrame], None],
 		max_frames: int | None = None,
-	) -> None:
-		"""Start async streaming with callback."""
-		self._streaming = True
-		self._frame_callbacks.append(callback)
+	):
+		"""Start streaming in a background thread."""
+		if self._stream_thread and self._stream_thread.is_alive():
+			raise RuntimeError("Already streaming")
 
-		def read_loop() -> None:
+		self._callbacks = [callback] if callback else []
+		self._stop_event.clear()
+
+		def run():
 			count = 0
-			while self._streaming:
-				if max_frames is not None and count >= max_frames:
-					break
+			while not self._stop_event.is_set() and self._running:
 				frame = self.read_frame(timeout=0.1)
-				if frame is not None:
-					count += 1
-					for cb in self._frame_callbacks:
+				if frame:
+					for cb in self._callbacks:
 						try:
 							cb(frame)
 						except Exception as e:
-							logger.error("callback_error", error=str(e))
-			self._streaming = False
+							logger.error(f"Callback error: {e}")
 
-		self._read_thread = threading.Thread(target=read_loop, daemon=True)
-		self._read_thread.start()
+					count += 1
+					if max_frames and count >= max_frames:
+						break
 
-	def get_version(self) -> dict[str, str]:
-		"""Query device version."""
-		response = self._send_command("version", wait=0.5)
-		info = {}
-		for line in response.split("\n"):
-			if ":" in line:
-				key, _, value = line.partition(":")
-				info[key.strip()] = value.strip()
-		return info
+		self._stream_thread = Thread(target=run, daemon=True)
+		self._stream_thread.start()
 
-	def query_status(self) -> dict[str, str]:
-		"""Query demo status."""
-		response = self._send_command("queryDemoStatus", wait=0.3)
-		status = {}
-		for line in response.split("\n"):
-			if ":" in line:
-				key, _, value = line.partition(":")
-				status[key.strip()] = value.strip()
-		return status
+	def get_version(self) -> str:
+		"""Query sensor firmware version."""
+		return self.send_command("version", timeout=0.3)
 
-	@property
-	def is_connected(self) -> bool:
-		cli_ok = self._cli_serial is not None and self._cli_serial.is_open
-		data_ok = self._data_serial is not None and self._data_serial.is_open
-		return cli_ok and data_ok
+	def query_status(self) -> str:
+		"""Query sensor status."""
+		return self.send_command("sensorStop", timeout=0.2)
 
-	@property
-	def is_running(self) -> bool:
-		return self._is_running
-
-	def __enter__(self) -> RadarSensor:
+	def __enter__(self):
 		self.connect()
 		return self
 
-	def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+	def __exit__(self, exc_type, exc_val, exc_tb):
 		self.stop()
 		self.disconnect()
-
-
-def find_radar_ports() -> tuple[str, str] | None:
-	"""Auto-detect radar serial ports. Returns (cli_port, data_port)."""
-	usb_ports = sorted(glob.glob("/dev/ttyUSB*"))
-	acm_ports = sorted(glob.glob("/dev/ttyACM*"))
-
-	for ports in [usb_ports, acm_ports]:
-		if len(ports) >= 2:
-			logger.info("ports_found", cli=ports[0], data=ports[1])
-			return ports[0], ports[1]
-	return None

@@ -25,3 +25,11 @@ data/
 *.hdf5
 *.parquet
 logs/
+
+# Dashboard
+dashboard/node_modules/
+dashboard/dist/
+dashboard/.vite/
+
+# Claude Code settings (local only)
+.claude/

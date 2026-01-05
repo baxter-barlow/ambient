@@ -1,0 +1,47 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*.so
+*.egg-info
+dist
+build
+.eggs
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+.venv
+venv
+
+# Node
+dashboard/node_modules
+dashboard/dist
+dashboard/.vite
+
+# IDE
+.idea
+.vscode
+*.swp
+
+# Data
+data/
+*.h5
+*.hdf5
+*.parquet
+logs/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Misc
+*.pdf
+*.deb
+*.tar.xz
+manual.pdf

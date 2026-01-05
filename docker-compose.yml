@@ -1,0 +1,129 @@
+# Docker Compose configuration for ambient radar interface
+# Supports USB serial passthrough for hardware development
+
+services:
+  # ==========================================================================
+  # Development environment with hot reload
+  # ==========================================================================
+  dev:
+    build:
+      context: .
+      target: dev
+    container_name: ambient-dev
+    volumes:
+      # Source code mounts for hot reload
+      - ./src:/app/src:cached
+      - ./dashboard/src:/app/dashboard/src:cached
+      - ./configs:/app/configs:cached
+      - ./tests:/app/tests:cached
+      # Persistent data storage
+      - ambient-data:/app/data
+      # Node modules (don't overwrite container's node_modules)
+      - /app/dashboard/node_modules
+    ports:
+      - "8000:8000"   # Backend API
+      - "5173:5173"   # Vite dev server
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AMBIENT_DATA_DIR=/app/data
+      - AMBIENT_CONFIG_DIR=/app/configs
+      - AMBIENT_CLI_PORT=${AMBIENT_CLI_PORT:-/dev/ttyUSB0}
+      - AMBIENT_DATA_PORT=${AMBIENT_DATA_PORT:-/dev/ttyUSB1}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    # USB serial device passthrough
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+      - /dev/ttyUSB1:/dev/ttyUSB1
+    # Alternative: dynamic USB detection (uncomment if devices change)
+    # device_cgroup_rules:
+    #   - 'c 188:* rmw'  # USB serial major number
+    # volumes:
+    #   - /dev:/dev:ro
+    privileged: false
+    # Required for serial port access
+    group_add:
+      - dialout
+    restart: unless-stopped
+    profiles:
+      - dev
+
+  # ==========================================================================
+  # Production environment
+  # ==========================================================================
+  prod:
+    build:
+      context: .
+      target: prod
+    container_name: ambient
+    volumes:
+      - ambient-data:/app/data
+      - ./configs:/app/configs:ro
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AMBIENT_DATA_DIR=/app/data
+      - AMBIENT_CONFIG_DIR=/app/configs
+      - AMBIENT_CLI_PORT=${AMBIENT_CLI_PORT:-/dev/ttyUSB0}
+      - AMBIENT_DATA_PORT=${AMBIENT_DATA_PORT:-/dev/ttyUSB1}
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+      - /dev/ttyUSB1:/dev/ttyUSB1
+    group_add:
+      - dialout
+    restart: unless-stopped
+    profiles:
+      - prod
+
+  # ==========================================================================
+  # Backend only (for API development without frontend)
+  # ==========================================================================
+  backend:
+    build:
+      context: .
+      target: dev
+    container_name: ambient-backend
+    command: uvicorn ambient.api.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./src:/app/src:cached
+      - ./configs:/app/configs:cached
+      - ambient-data:/app/data
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AMBIENT_DATA_DIR=/app/data
+      - AMBIENT_CONFIG_DIR=/app/configs
+      - AMBIENT_CLI_PORT=${AMBIENT_CLI_PORT:-/dev/ttyUSB0}
+      - AMBIENT_DATA_PORT=${AMBIENT_DATA_PORT:-/dev/ttyUSB1}
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+      - /dev/ttyUSB1:/dev/ttyUSB1
+    group_add:
+      - dialout
+    profiles:
+      - backend
+
+  # ==========================================================================
+  # Frontend only (connects to external backend)
+  # ==========================================================================
+  frontend:
+    build:
+      context: .
+      target: dev
+    container_name: ambient-frontend
+    command: sh -c "cd dashboard && npm run dev -- --host 0.0.0.0"
+    working_dir: /app
+    volumes:
+      - ./dashboard/src:/app/dashboard/src:cached
+      - /app/dashboard/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    profiles:
+      - frontend
+
+volumes:
+  ambient-data:
+    name: ambient-data

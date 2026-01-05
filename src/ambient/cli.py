@@ -43,13 +43,14 @@ def main() -> None:
 def capture(cli_port: str, data_port: str, config: str | None, output: str | None, duration: float) -> None:
 	"""Capture radar data and vital signs."""
 	from ambient.sensor import RadarSensor
+	from ambient.sensor.config import SerialConfig
 	from ambient.processing import ProcessingPipeline
 	from ambient.vitals import VitalsExtractor
 	from ambient.storage import HDF5Writer, ParquetWriter
 
 	console.print("[bold green]Ambient[/] - Starting capture...")
 
-	sensor = RadarSensor(cli_port=cli_port, data_port=data_port)
+	sensor = RadarSensor(SerialConfig(cli_port=cli_port, data_port=data_port))
 	pipeline = ProcessingPipeline()
 	extractor = VitalsExtractor()
 
@@ -123,13 +124,14 @@ def capture(cli_port: str, data_port: str, config: str | None, output: str | Non
 def monitor(cli_port: str, data_port: str, config: str | None) -> None:
 	"""Live monitoring with visualization."""
 	from ambient.sensor import RadarSensor
+	from ambient.sensor.config import SerialConfig
 	from ambient.processing import ProcessingPipeline
 	from ambient.vitals import VitalsExtractor
 	from ambient.viz import VitalsPlotter
 
 	console.print("[bold green]Ambient[/] - Starting monitor...")
 
-	sensor = RadarSensor(cli_port=cli_port, data_port=data_port)
+	sensor = RadarSensor(SerialConfig(cli_port=cli_port, data_port=data_port))
 	pipeline = ProcessingPipeline()
 	extractor = VitalsExtractor()
 	plotter = VitalsPlotter()
@@ -168,8 +170,9 @@ def monitor(cli_port: str, data_port: str, config: str | None) -> None:
 def info(cli_port: str, data_port: str) -> None:
 	"""Show sensor information."""
 	from ambient.sensor import RadarSensor
+	from ambient.sensor.config import SerialConfig
 
-	sensor = RadarSensor(cli_port=cli_port, data_port=data_port)
+	sensor = RadarSensor(SerialConfig(cli_port=cli_port, data_port=data_port))
 
 	try:
 		sensor.connect()
