@@ -213,7 +213,7 @@ class RadarSensor:
 		if self._stream_thread and self._stream_thread.is_alive():
 			raise RuntimeError("Already streaming")
 
-		self._callbacks = [callback] if callback else []
+		self._callbacks = [callback] if callback is not None else []
 		self._stop_event.clear()
 
 		def run():

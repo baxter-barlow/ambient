@@ -102,8 +102,9 @@ class RealtimePlotter:
 			self._lines["rd"].set_data(rd)
 			self._lines["rd"].set_clim(rd.min(), rd.max())
 
-		self._fig.canvas.draw_idle()
-		self._fig.canvas.flush_events()
+		if self._fig:
+			self._fig.canvas.draw_idle()
+			self._fig.canvas.flush_events()
 
 	def show(self) -> None:
 		import matplotlib.pyplot as plt
@@ -203,8 +204,9 @@ class VitalsPlotter:
 		if vitals.respiratory_rate_bpm:
 			self._axes["rr"].set_title(f"Respiratory Rate: {vitals.respiratory_rate_bpm:.0f} BPM")
 
-		self._fig.canvas.draw_idle()
-		self._fig.canvas.flush_events()
+		if self._fig:
+			self._fig.canvas.draw_idle()
+			self._fig.canvas.flush_events()
 
 	def show(self) -> None:
 		import matplotlib.pyplot as plt

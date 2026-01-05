@@ -106,11 +106,11 @@ class ClutterRemoval:
 		self.method = method
 
 		if method == "mti":
-			cfg = MTIConfig(**{k: v for k, v in kwargs.items() if k in MTIConfig.__annotations__})
-			self._filter: ClutterFilter = MTIFilter(cfg)
+			mti_cfg = MTIConfig(**{k: v for k, v in kwargs.items() if k in MTIConfig.__annotations__})
+			self._filter: ClutterFilter = MTIFilter(mti_cfg)
 		elif method == "moving_average":
-			cfg = MovingAverageConfig(**{k: v for k, v in kwargs.items() if k in MovingAverageConfig.__annotations__})
-			self._filter = MovingAverageClutter(cfg)
+			ma_cfg = MovingAverageConfig(**{k: v for k, v in kwargs.items() if k in MovingAverageConfig.__annotations__})
+			self._filter = MovingAverageClutter(ma_cfg)
 		elif method == "none":
 			self._filter = NullFilter()
 		else:

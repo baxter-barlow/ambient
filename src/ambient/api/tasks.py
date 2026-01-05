@@ -72,7 +72,7 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 		logger.error("Acquisition started without sensor/pipeline/extractor")
 		return
 
-	last_vitals_broadcast = 0
+	last_vitals_broadcast = 0.0
 	vitals_interval = 1.0  # Broadcast vitals at 1 Hz
 
 	logger.info("Starting acquisition loop")

@@ -96,7 +96,7 @@ class HDF5Writer(DataWriter):
 			"signal_quality": self._create_ds(self._vitals_group, "signal_quality", np.float32),
 		}
 
-	def _create_ds(self, group: h5py.Group, name: str, dtype: np.dtype) -> h5py.Dataset:
+	def _create_ds(self, group: h5py.Group, name: str, dtype: Any) -> h5py.Dataset:
 		opts = {"compression_opts": self.compression_level} if self.compression == "gzip" else {}
 		return group.create_dataset(
 			name, shape=(0,), maxshape=(None,), dtype=dtype,

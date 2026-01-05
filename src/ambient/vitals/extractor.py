@@ -116,7 +116,7 @@ class VitalsExtractor:
 		result.phase_signal = phase_signal
 
 		motion_metric = np.std(np.diff(phase_signal))
-		result.motion_detected = motion_metric > self.config.motion_threshold
+		result.motion_detected = bool(motion_metric > self.config.motion_threshold)
 		if result.motion_detected:
 			return result
 
