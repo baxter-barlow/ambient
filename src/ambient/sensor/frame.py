@@ -41,23 +41,27 @@ def _parse_points(data: bytes) -> list:
 
 
 def _parse_range_profile(data: bytes) -> NDArray[np.float32]:
-	"""Parse range profile from TLV data."""
+	"""Parse range profile from TLV data and convert to dB."""
 	num_bins = len(data) // 2
 	values = struct.unpack(f"<{num_bins}H", data)
-	return np.array(values, dtype=np.float32)
+	arr = np.array(values, dtype=np.float32)
+	# Convert magnitude to dB scale (TI sends raw magnitude values)
+	return 20 * np.log10(arr + 1)
 
 
 def _parse_range_doppler(data: bytes) -> NDArray[np.float32] | None:
-	"""Parse range-doppler heatmap from TLV data."""
+	"""Parse range-doppler heatmap from TLV data and convert to dB."""
 	num_values = len(data) // 2
 	if num_values == 0:
 		return None
 	values = struct.unpack(f"<{num_values}H", data)
 	arr = np.array(values, dtype=np.float32)
+	# Convert to dB scale
+	arr_db = 20 * np.log10(arr + 1)
 	side = int(np.sqrt(num_values))
 	if side * side == num_values:
-		return arr.reshape((side, side))
-	return arr.reshape((-1, 256)) if num_values % 256 == 0 else None
+		return arr_db.reshape((side, side))
+	return arr_db.reshape((-1, 256)) if num_values % 256 == 0 else None
 
 
 @dataclass
@@ -259,7 +263,9 @@ class FrameBuffer:
 	def _parse_range_profile(self, data: bytes) -> NDArray[np.float32]:
 		num_bins = len(data) // 2
 		values = struct.unpack(f"<{num_bins}H", data)
-		return np.array(values, dtype=np.float32)
+		arr = np.array(values, dtype=np.float32)
+		# Convert magnitude to dB scale (TI sends raw magnitude values)
+		return 20 * np.log10(arr + 1)
 
 	def _parse_range_doppler(self, data: bytes, header: FrameHeader) -> NDArray[np.float32] | None:
 		num_values = len(data) // 2
@@ -267,10 +273,12 @@ class FrameBuffer:
 			return None
 		values = struct.unpack(f"<{num_values}H", data)
 		arr = np.array(values, dtype=np.float32)
+		# Convert to dB scale
+		arr_db = 20 * np.log10(arr + 1)
 		side = int(np.sqrt(num_values))
 		if side * side == num_values:
-			return arr.reshape((side, side))
-		return arr.reshape((-1, 256)) if num_values % 256 == 0 else None
+			return arr_db.reshape((side, side))
+		return arr_db.reshape((-1, 256)) if num_values % 256 == 0 else None
 
 	def clear(self):
 		self._buffer.clear()

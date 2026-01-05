@@ -104,15 +104,30 @@ class ProcessingPipeline:
 		return [r for r in targets if self.config.target_range_min_m <= r <= self.config.target_range_max_m]
 
 	def _extract_phase(self, range_profile: NDArray, target_range: float) -> NDArray:
+		"""Extract displacement signal from range profile.
+
+		Note: The TI out-of-box demo sends magnitude-only data, not complex I/Q.
+		For vital signs, we use the magnitude variation at the target bin as a
+		proxy for chest displacement. True phase extraction requires raw ADC data.
+		"""
 		range_res = 0.044
 		bin_idx = int(target_range / range_res)
 		bin_idx = max(0, min(bin_idx, len(range_profile) - 1))
 		self._target_bin = bin_idx
 
 		if np.iscomplexobj(range_profile):
+			# True phase from complex data (if available)
 			phase = np.angle(range_profile[bin_idx])
 		else:
-			phase = float(range_profile[bin_idx])
+			# Use magnitude variation as displacement proxy (normalized)
+			# Subtract mean to center around zero like phase would be
+			magnitude = float(range_profile[bin_idx])
+			self._phase_history.append(magnitude)
+			if len(self._phase_history) > 200:
+				self._phase_history = self._phase_history[-200:]
+			mean_mag = np.mean(self._phase_history)
+			# Scale to roughly -pi to pi range for compatibility
+			phase = (magnitude - mean_mag) * 0.1
 
 		return np.array([phase])
 
