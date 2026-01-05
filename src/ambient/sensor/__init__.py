@@ -1,13 +1,15 @@
-"""Sensor communication for TI IWR6843AOPEVM."""
-
-from ambient.sensor.radar import RadarSensor
-from ambient.sensor.frame import RadarFrame, FrameHeader
-from ambient.sensor.config import ChirpConfig, load_config
+"""Sensor interface for IWR6843AOPEVM radar."""
+from .radar import RadarSensor
+from .frame import RadarFrame, DetectedPoint, FrameBuffer, FrameHeader
+from .config import ChirpConfig, SerialConfig, create_vital_signs_config
 
 __all__ = [
 	"RadarSensor",
 	"RadarFrame",
+	"DetectedPoint",
+	"FrameBuffer",
 	"FrameHeader",
 	"ChirpConfig",
-	"load_config",
+	"SerialConfig",
+	"create_vital_signs_config",
 ]

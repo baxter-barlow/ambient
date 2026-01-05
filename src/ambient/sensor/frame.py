@@ -1,66 +1,68 @@
 """Radar frame parsing and data structures."""
-
 from __future__ import annotations
 
 import struct
 import time
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import NDArray
-import structlog
 
-logger = structlog.get_logger(__name__)
+if TYPE_CHECKING:
+	pass
 
 MAGIC_WORD = bytes([0x02, 0x01, 0x04, 0x03, 0x06, 0x05, 0x08, 0x07])
 HEADER_SIZE = 40
 
-# TLV types
 TLV_DETECTED_POINTS = 1
 TLV_RANGE_PROFILE = 2
 TLV_NOISE_PROFILE = 3
-TLV_AZIMUTH_STATIC_HEATMAP = 4
-TLV_RANGE_DOPPLER_HEATMAP = 5
+TLV_RANGE_DOPPLER = 5
 TLV_STATS = 6
-TLV_DETECTED_POINTS_SIDE_INFO = 7
 
 
-@dataclass(frozen=True)
-class FrameHeader:
-	magic: bytes
-	version: int
-	packet_length: int
-	platform: int
-	frame_number: int
-	time_cpu_cycles: int
-	num_detected_obj: int
-	num_tlvs: int
-	subframe_number: int
+def _parse_points(data: bytes) -> list:
+	"""Parse detected points from TLV data."""
+	points = []
+	point_size = 24 if len(data) % 24 == 0 and len(data) % 16 != 0 else 16
+	num_points = len(data) // point_size
 
-	@classmethod
-	def from_bytes(cls, data: bytes) -> FrameHeader:
-		if len(data) < HEADER_SIZE:
-			raise ValueError(f"Header requires {HEADER_SIZE} bytes, got {len(data)}")
+	for i in range(num_points):
+		off = i * point_size
+		if point_size == 16:
+			x, y, z, vel = struct.unpack("<ffff", data[off:off + 16])
+			snr, noise = 0.0, 0.0
+		else:
+			x, y, z, vel, snr, noise = struct.unpack("<ffffff", data[off:off + 24])
+		points.append(DetectedPoint(x=x, y=y, z=z, velocity=vel, snr=snr, noise=noise))
 
-		fields = struct.unpack("<8BIIIIIIII", data[:HEADER_SIZE])
-		return cls(
-			magic=data[:8],
-			version=fields[8],
-			packet_length=fields[9],
-			platform=fields[10],
-			frame_number=fields[11],
-			time_cpu_cycles=fields[12],
-			num_detected_obj=fields[13],
-			num_tlvs=fields[14],
-			subframe_number=fields[15],
-		)
+	return points
 
-	def validate(self) -> bool:
-		return self.magic == MAGIC_WORD and self.packet_length > 0
+
+def _parse_range_profile(data: bytes) -> NDArray[np.float32]:
+	"""Parse range profile from TLV data."""
+	num_bins = len(data) // 2
+	values = struct.unpack(f"<{num_bins}H", data)
+	return np.array(values, dtype=np.float32)
+
+
+def _parse_range_doppler(data: bytes) -> NDArray[np.float32] | None:
+	"""Parse range-doppler heatmap from TLV data."""
+	num_values = len(data) // 2
+	if num_values == 0:
+		return None
+	values = struct.unpack(f"<{num_values}H", data)
+	arr = np.array(values, dtype=np.float32)
+	side = int(np.sqrt(num_values))
+	if side * side == num_values:
+		return arr.reshape((side, side))
+	return arr.reshape((-1, 256)) if num_values % 256 == 0 else None
 
 
 @dataclass
 class DetectedPoint:
+	"""Single detected point from radar."""
 	x: float
 	y: float
 	z: float
@@ -70,55 +72,176 @@ class DetectedPoint:
 
 	@property
 	def range(self) -> float:
-		return float(np.sqrt(self.x**2 + self.y**2 + self.z**2))
+		return np.sqrt(self.x**2 + self.y**2 + self.z**2)
 
 	@property
 	def azimuth(self) -> float:
-		return float(np.arctan2(self.x, self.y))
+		return np.arctan2(self.x, self.y)
 
 	@property
 	def elevation(self) -> float:
-		return float(np.arctan2(self.z, np.sqrt(self.x**2 + self.y**2)))
+		r_xy = np.sqrt(self.x**2 + self.y**2)
+		return np.arctan2(self.z, r_xy) if r_xy > 0 else 0.0
+
+
+@dataclass
+class FrameHeader:
+	"""Radar frame header."""
+	version: int
+	packet_length: int
+	platform: int
+	frame_number: int
+	time_cpu_cycles: int
+	num_detected_obj: int
+	num_tlvs: int
+	subframe_number: int = 0
+	_raw_data: bytes = field(default=b"", repr=False)
+
+	@classmethod
+	def from_bytes(cls, data: bytes) -> FrameHeader:
+		"""Parse header from raw bytes."""
+		if len(data) < HEADER_SIZE:
+			raise ValueError(f"Data too short: {len(data)} < {HEADER_SIZE}")
+		fields = struct.unpack("<8BIIIIIIII", data[:40])
+		return cls(
+			version=fields[8],
+			packet_length=fields[9],
+			platform=fields[10],
+			frame_number=fields[11],
+			time_cpu_cycles=fields[12],
+			num_detected_obj=fields[13],
+			num_tlvs=fields[14],
+			subframe_number=fields[15] if len(fields) > 15 else 0,
+			_raw_data=data[:8],
+		)
+
+	def validate(self) -> bool:
+		"""Check if the header has valid magic word."""
+		return self._raw_data[:8] == MAGIC_WORD
 
 
 @dataclass
 class RadarFrame:
-	header: FrameHeader
+	"""Complete radar frame with header and parsed data."""
+	header: FrameHeader | None = None
 	detected_points: list[DetectedPoint] = field(default_factory=list)
 	range_profile: NDArray[np.float32] | None = None
 	range_doppler_heatmap: NDArray[np.float32] | None = None
-	azimuth_heatmap: NDArray[np.complex64] | None = None
+	timestamp: float = field(default_factory=time.time)
 	raw_data: bytes = b""
-	timestamp: float = 0.0
 
 	@classmethod
-	def from_bytes(cls, data: bytes, timestamp: float = 0.0) -> RadarFrame:
+	def from_bytes(cls, data: bytes, timestamp: float | None = None) -> RadarFrame:
+		"""Parse a complete frame from raw bytes."""
+		if len(data) < HEADER_SIZE:
+			raise ValueError(f"Data too short: {len(data)} < {HEADER_SIZE}")
+
 		header = FrameHeader.from_bytes(data)
-		frame = cls(header=header, raw_data=data, timestamp=timestamp)
+		frame = cls(
+			header=header,
+			raw_data=data,
+			timestamp=timestamp if timestamp is not None else time.time(),
+		)
+
+		# Parse TLVs
+		offset = HEADER_SIZE
+		for _ in range(header.num_tlvs):
+			if offset + 8 > len(data):
+				break
+			tlv_type, tlv_length = struct.unpack("<II", data[offset:offset + 8])
+			tlv_data = data[offset + 8:offset + 8 + tlv_length]
+			offset += 8 + tlv_length
+
+			if tlv_type == TLV_DETECTED_POINTS:
+				frame.detected_points = _parse_points(tlv_data)
+			elif tlv_type == TLV_RANGE_PROFILE:
+				frame.range_profile = _parse_range_profile(tlv_data)
+			elif tlv_type == TLV_RANGE_DOPPLER:
+				frame.range_doppler_heatmap = _parse_range_doppler(tlv_data)
+
+		return frame
+
+
+class FrameBuffer:
+	"""Accumulates serial data and extracts complete frames."""
+
+	def __init__(self, max_size: int = 65536):
+		self._buffer = bytearray()
+		self._max_size = max_size
+
+	def append(self, data: bytes):
+		"""Add data to buffer."""
+		self._buffer.extend(data)
+		if len(self._buffer) > self._max_size:
+			idx = self._buffer.rfind(MAGIC_WORD)
+			if idx > 0:
+				self._buffer = self._buffer[idx:]
+			else:
+				self._buffer = self._buffer[-1024:]
+
+	def extract_frame(self) -> RadarFrame | None:
+		"""Extract and parse a complete frame, or return None."""
+		idx = self._buffer.find(MAGIC_WORD)
+		if idx == -1:
+			if len(self._buffer) > 32:
+				self._buffer = self._buffer[-16:]
+			return None
+
+		if idx > 0:
+			self._buffer = self._buffer[idx:]
+
+		if len(self._buffer) < HEADER_SIZE:
+			return None
+
+		header = self._parse_header(bytes(self._buffer[:HEADER_SIZE]))
+		if header.packet_length > self._max_size or header.packet_length < HEADER_SIZE:
+			self._buffer = self._buffer[8:]
+			return None
+
+		if len(self._buffer) < header.packet_length:
+			return None
+
+		frame_data = bytes(self._buffer[:header.packet_length])
+		self._buffer = self._buffer[header.packet_length:]
+
+		return self._parse_frame(header, frame_data)
+
+	def _parse_header(self, data: bytes) -> FrameHeader:
+		fields = struct.unpack("<8BIIIIIIII", data[:40])
+		return FrameHeader(
+			version=fields[8],
+			packet_length=fields[9],
+			platform=fields[10],
+			frame_number=fields[11],
+			time_cpu_cycles=fields[12],
+			num_detected_obj=fields[13],
+			num_tlvs=fields[14],
+			subframe_number=fields[15] if len(fields) > 15 else 0,
+		)
+
+	def _parse_frame(self, header: FrameHeader, data: bytes) -> RadarFrame:
+		frame = RadarFrame(header=header, raw_data=data, timestamp=time.time())
 
 		offset = HEADER_SIZE
 		for _ in range(header.num_tlvs):
 			if offset + 8 > len(data):
-				logger.warning("truncated_tlv", offset=offset)
 				break
 
 			tlv_type, tlv_length = struct.unpack("<II", data[offset:offset + 8])
 			tlv_data = data[offset + 8:offset + 8 + tlv_length]
 			offset += 8 + tlv_length
-			frame._parse_tlv(tlv_type, tlv_data)
+
+			if tlv_type == TLV_DETECTED_POINTS:
+				frame.detected_points = self._parse_points(tlv_data)
+			elif tlv_type == TLV_RANGE_PROFILE:
+				frame.range_profile = self._parse_range_profile(tlv_data)
+			elif tlv_type == TLV_RANGE_DOPPLER:
+				frame.range_doppler_heatmap = self._parse_range_doppler(tlv_data, header)
 
 		return frame
 
-	def _parse_tlv(self, tlv_type: int, data: bytes) -> None:
-		if tlv_type == TLV_DETECTED_POINTS:
-			self._parse_detected_points(data)
-		elif tlv_type == TLV_RANGE_PROFILE:
-			self._parse_range_profile(data)
-		elif tlv_type == TLV_RANGE_DOPPLER_HEATMAP:
-			self._parse_range_doppler(data)
-
-	def _parse_detected_points(self, data: bytes) -> None:
-		# 16 bytes without SNR, 24 with
+	def _parse_points(self, data: bytes) -> list[DetectedPoint]:
+		points = []
 		point_size = 24 if len(data) % 24 == 0 and len(data) % 16 != 0 else 16
 		num_points = len(data) // point_size
 
@@ -129,57 +252,27 @@ class RadarFrame:
 				snr, noise = 0.0, 0.0
 			else:
 				x, y, z, vel, snr, noise = struct.unpack("<ffffff", data[off:off + 24])
+			points.append(DetectedPoint(x=x, y=y, z=z, velocity=vel, snr=snr, noise=noise))
 
-			self.detected_points.append(
-				DetectedPoint(x=x, y=y, z=z, velocity=vel, snr=snr, noise=noise)
-			)
+		return points
 
-	def _parse_range_profile(self, data: bytes) -> None:
-		self.range_profile = np.frombuffer(data, dtype=np.uint16).astype(np.float32)
+	def _parse_range_profile(self, data: bytes) -> NDArray[np.float32]:
+		num_bins = len(data) // 2
+		values = struct.unpack(f"<{num_bins}H", data)
+		return np.array(values, dtype=np.float32)
 
-	def _parse_range_doppler(self, data: bytes) -> None:
-		self.range_doppler_heatmap = np.frombuffer(data, dtype=np.uint16).astype(np.float32)
-
-
-class FrameBuffer:
-	"""Accumulates serial data and extracts complete frames."""
-
-	def __init__(self, max_size: int = 65536) -> None:
-		self._buffer = bytearray()
-		self._max_size = max_size
-
-	def append(self, data: bytes) -> None:
-		self._buffer.extend(data)
-		if len(self._buffer) > self._max_size:
-			idx = self._buffer.rfind(MAGIC_WORD)
-			if idx > 0:
-				self._buffer = self._buffer[idx:]
-
-	def extract_frame(self) -> RadarFrame | None:
-		idx = self._buffer.find(MAGIC_WORD)
-		if idx < 0:
+	def _parse_range_doppler(self, data: bytes, header: FrameHeader) -> NDArray[np.float32] | None:
+		num_values = len(data) // 2
+		if num_values == 0:
 			return None
+		values = struct.unpack(f"<{num_values}H", data)
+		arr = np.array(values, dtype=np.float32)
+		side = int(np.sqrt(num_values))
+		if side * side == num_values:
+			return arr.reshape((side, side))
+		return arr.reshape((-1, 256)) if num_values % 256 == 0 else None
 
-		if idx > 0:
-			self._buffer = self._buffer[idx:]
-
-		if len(self._buffer) < HEADER_SIZE:
-			return None
-
-		try:
-			header = FrameHeader.from_bytes(bytes(self._buffer[:HEADER_SIZE]))
-		except Exception:
-			self._buffer = self._buffer[8:]
-			return None
-
-		if len(self._buffer) < header.packet_length:
-			return None
-
-		frame_data = bytes(self._buffer[:header.packet_length])
-		self._buffer = self._buffer[header.packet_length:]
-		return RadarFrame.from_bytes(frame_data, timestamp=time.time())
-
-	def clear(self) -> None:
+	def clear(self):
 		self._buffer.clear()
 
 	def __len__(self) -> int:

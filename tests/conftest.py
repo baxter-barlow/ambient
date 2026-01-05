@@ -10,10 +10,11 @@ import pytest
 def sample_frame_bytes() -> bytes:
 	"""Valid radar frame with 3 detected points."""
 	magic = bytes([0x02, 0x01, 0x04, 0x03, 0x06, 0x05, 0x08, 0x07])
+	# packet_length = magic(8) + header(32) + tlv_header(8) + points(48) = 96
 	header = struct.pack(
 		"<IIIIIIII",
 		0x0102,     # version
-		100,        # packet_length
+		96,         # packet_length (must match actual frame size)
 		0x6843,     # platform
 		1,          # frame_number
 		1000000,    # time_cpu_cycles

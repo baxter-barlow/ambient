@@ -1,13 +1,11 @@
 # ambient
 
-Contact-free sleep biometrics using TI IWR6843AOPEVM mmWave radar.
-
-Extracts heart rate and respiratory rate from radar phase variations without any wearable sensors.
+Contact-free vital signs monitoring using TI IWR6843AOPEVM mmWave radar. Extracts heart rate and respiratory rate from radar phase variations.
 
 ## Requirements
 
-- TI IWR6843AOPEVM evaluation module
-- Ubuntu Linux (tested on 22.04)
+- TI IWR6843AOPEVM with out-of-box demo firmware
+- Ubuntu Linux 22.04+
 - Python 3.10+
 
 ## Installation
@@ -16,94 +14,91 @@ Extracts heart rate and respiratory rate from radar phase variations without any
 pip install -e .
 ```
 
-With dev tools:
-
+With dashboard:
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dashboard,dev]"
 ```
 
 ## Hardware Setup
 
-1. Connect IWR6843AOPEVM via USB
-2. Verify ports: `ls /dev/ttyUSB*` (should show ttyUSB0 and ttyUSB1)
-3. Add yourself to dialout group: `sudo usermod -a -G dialout $USER` and re-login
+1. Flash firmware using [UniFlash](https://www.ti.com/tool/UNIFLASH)
+2. Add user to dialout: `sudo usermod -aG dialout $USER` (re-login)
+3. Verify ports: `ls /dev/ttyUSB*`
 
 ## Usage
 
-### CLI
-
+CLI:
 ```bash
-# sensor info
-ambient info
-
-# live monitoring with plot
-ambient monitor
-
-# record session
-ambient capture -o data/session.h5 -d 3600
+ambient info                          # sensor info
+ambient monitor                       # live visualization
+ambient capture -o data/session.h5    # record session
 ```
 
-### Python
-
+Python:
 ```python
 from ambient import RadarSensor, ProcessingPipeline, VitalsExtractor
 
 with RadarSensor() as sensor:
-    sensor.configure("configs/vital_signs.cfg")
+    sensor.configure("configs/basic.cfg")
     pipeline = ProcessingPipeline()
     extractor = VitalsExtractor()
 
     for frame in sensor.stream(duration=60):
-        processed = pipeline.process(frame)
-        vitals = extractor.process_frame(processed)
-
+        vitals = extractor.process_frame(pipeline.process(frame))
         if vitals.is_valid():
-            print(f"HR: {vitals.heart_rate_bpm:.0f}, RR: {vitals.respiratory_rate_bpm:.0f}")
+            print(f"HR: {vitals.heart_rate_bpm:.0f} RR: {vitals.respiratory_rate_bpm:.0f}")
 ```
 
-### Load recorded data
+## Dashboard
 
-```python
-from ambient.storage import DataReader
+```bash
+make dashboard-install    # first time
+make dashboard            # run backend + frontend
+```
 
-with DataReader("data/session.h5") as reader:
-    df = reader.get_vitals_dataframe()
-    print(df.describe())
+Open http://localhost:5173 (dev) or http://localhost:8000 (prod).
+
+Docker:
+```bash
+make docker-dev           # development with hot reload
+make docker-prod          # production
 ```
 
 ## Project Structure
 
 ```
 src/ambient/
-├── sensor/      # serial communication, frame parsing
+├── sensor/      # serial, frame parsing
 ├── processing/  # FFT, clutter removal
-├── vitals/      # HR/RR extraction, filtering
+├── vitals/      # HR/RR extraction
 ├── storage/     # HDF5/Parquet I/O
-└── viz/         # matplotlib plotting
+└── api/         # FastAPI backend
+
+dashboard/       # React frontend
 ```
 
 ## Configuration
 
-Chirp configs in `configs/`. Default `vital_signs.cfg` is optimized for:
-- 20 Hz frame rate
-- 0.3-2.0m range
-- Static clutter removal
+| Variable | Default | Description |
+|----------|---------|-------------|
+| AMBIENT_CLI_PORT | /dev/ttyUSB0 | CLI port |
+| AMBIENT_DATA_PORT | /dev/ttyUSB1 | Data port |
+| AMBIENT_DATA_DIR | data/ | Recording storage |
 
 ## Development
 
 ```bash
 make dev      # install with dev deps
-make lint     # ruff + black + mypy
-make test     # pytest
-make format   # auto-format
+make test     # run tests
+make lint     # ruff + black
 ```
 
 ## Serial Ports
 
-| Port | Purpose | Baud |
-|------|---------|------|
-| /dev/ttyUSB0 | CLI | 115200 |
-| /dev/ttyUSB1 | Data | 921600 |
+| Port | Baud |
+|------|------|
+| CLI (ttyUSB0) | 115200 |
+| Data (ttyUSB1) | 921600 |
 
 ## License
 
