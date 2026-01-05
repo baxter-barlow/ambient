@@ -19,32 +19,32 @@ export default function PhaseSignal({ timestamps, phases, width = 600, height = 
 		const opts: uPlot.Options = {
 			width,
 			height,
-			title: 'Phase Signal',
+			title: 'Displacement Signal',
 			scales: {
 				x: { time: true },
 				y: { auto: true },
 			},
 			axes: [
 				{
-					stroke: '#6b7280',
-					grid: { stroke: '#374151' },
+					stroke: '#9ca3af',
+					grid: { stroke: '#374151', width: 1 },
 					ticks: { stroke: '#4b5563' },
-					font: '11px sans-serif',
+					font: '12px sans-serif',
 				},
 				{
-					stroke: '#6b7280',
-					grid: { stroke: '#374151' },
+					stroke: '#9ca3af',
+					grid: { stroke: '#374151', width: 1 },
 					ticks: { stroke: '#4b5563' },
-					label: 'Phase (rad)',
-					labelSize: 12,
-					font: '11px sans-serif',
+					label: 'Displacement (a.u.)',
+					labelSize: 14,
+					font: '12px sans-serif',
 				},
 			],
 			series: [
 				{},
 				{
 					stroke: '#3b82f6',
-					width: 1.5,
+					width: 2,
 				},
 			],
 		}

@@ -125,3 +125,30 @@ async def emergency_stop():
 	state = get_app_state()
 	await state.device.emergency_stop()
 	return state.device.get_status()
+
+
+@router.get("/debug/signal-stats")
+async def signal_stats():
+	"""Return current signal statistics for debugging."""
+	state = get_app_state()
+	device = state.device
+
+	result = {
+		"device_state": device.state.value,
+		"last_frame": None,
+		"buffers": {
+			"phase_history_length": 0,
+			"frames_processed": device._frame_count,
+		},
+		"vitals": None,
+	}
+
+	# Get info about last processed data
+	if device.pipeline and hasattr(device.pipeline, '_phase_history'):
+		result["buffers"]["phase_history_length"] = len(device.pipeline._phase_history)
+
+	if device.extractor:
+		result["buffers"]["phase_buffer_length"] = len(device.extractor._phase_buffer)
+		result["buffers"]["buffer_fullness"] = device.extractor.buffer_fullness
+
+	return result

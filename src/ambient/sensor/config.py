@@ -93,7 +93,8 @@ class ChirpConfig:
 			f"frameCfg {f.chirp_start_idx} {f.chirp_end_idx} {f.num_loops} {f.num_frames} "
 			f"{f.frame_period_ms} {f.trigger_select} {f.trigger_delay_us}",
 			"lowPower 0 0",
-			"guiMonitor -1 1 1 0 0 0 1",
+			# guiMonitor: subframe, detObj, rangeProfile, noiseProfile, azimuthHeatmap, rangeDopplerHeatmap, stats
+			"guiMonitor -1 1 1 0 0 1 1",
 			"cfarCfg -1 0 2 8 4 3 0 15 1",
 			"cfarCfg -1 1 0 4 2 3 1 15 1",
 			"multiObjBeamForming -1 1 0.5",
