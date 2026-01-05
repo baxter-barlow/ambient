@@ -12,8 +12,9 @@ import structlog
 if TYPE_CHECKING:
 	from matplotlib.axes import Axes
 	from matplotlib.figure import Figure
-	from ambient.vitals.extractor import VitalSigns
+
 	from ambient.sensor.frame import RadarFrame
+	from ambient.vitals.extractor import VitalSigns
 
 logger = structlog.get_logger(__name__)
 
@@ -82,7 +83,6 @@ class RealtimePlotter:
 	def update(self, frame: RadarFrame) -> None:
 		if not self._initialized:
 			self.setup()
-		import matplotlib.pyplot as plt
 
 		if frame.range_profile is not None:
 			self._lines["range"].set_data(np.arange(len(frame.range_profile)), frame.range_profile)

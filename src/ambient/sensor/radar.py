@@ -3,14 +3,14 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from threading import Thread, Event
-from typing import Callable, Iterator
+from threading import Event, Thread
 
 import serial
 import serial.tools.list_ports
 
-from .config import ChirpConfig, SerialConfig, load_config_file, create_vital_signs_config
+from .config import ChirpConfig, SerialConfig, load_config_file
 from .frame import FrameBuffer, RadarFrame
 
 logger = logging.getLogger(__name__)

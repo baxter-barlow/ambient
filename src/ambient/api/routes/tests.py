@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi import APIRouter
 
-from ..schemas import TestModule, TestRunRequest, TestResult
+from ..schemas import TestModule, TestRunRequest
 
 router = APIRouter(prefix="/api/tests", tags=["tests"])
 

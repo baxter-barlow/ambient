@@ -1,7 +1,7 @@
 """Sensor interface for IWR6843AOPEVM radar."""
-from .radar import RadarSensor
-from .frame import RadarFrame, DetectedPoint, FrameBuffer, FrameHeader
 from .config import ChirpConfig, SerialConfig, create_vital_signs_config
+from .frame import DetectedPoint, FrameBuffer, FrameHeader, RadarFrame
+from .radar import RadarSensor
 
 __all__ = [
 	"RadarSensor",

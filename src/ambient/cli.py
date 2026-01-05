@@ -42,11 +42,11 @@ def main() -> None:
 @click.option("-d", "--duration", type=float, default=0, help="Recording duration (0=unlimited)")
 def capture(cli_port: str, data_port: str, config: str | None, output: str | None, duration: float) -> None:
 	"""Capture radar data and vital signs."""
+	from ambient.processing import ProcessingPipeline
 	from ambient.sensor import RadarSensor
 	from ambient.sensor.config import SerialConfig
-	from ambient.processing import ProcessingPipeline
-	from ambient.vitals import VitalsExtractor
 	from ambient.storage import HDF5Writer, ParquetWriter
+	from ambient.vitals import VitalsExtractor
 
 	console.print("[bold green]Ambient[/] - Starting capture...")
 
@@ -123,9 +123,9 @@ def capture(cli_port: str, data_port: str, config: str | None, output: str | Non
 @click.option("--config", type=click.Path(exists=True), help="Chirp config file")
 def monitor(cli_port: str, data_port: str, config: str | None) -> None:
 	"""Live monitoring with visualization."""
+	from ambient.processing import ProcessingPipeline
 	from ambient.sensor import RadarSensor
 	from ambient.sensor.config import SerialConfig
-	from ambient.processing import ProcessingPipeline
 	from ambient.vitals import VitalsExtractor
 	from ambient.viz import VitalsPlotter
 

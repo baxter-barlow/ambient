@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
-from numpy.typing import NDArray
 import structlog
+from numpy.typing import NDArray
 
+from ambient.vitals.filters import BandpassFilter
 from ambient.vitals.heart_rate import HeartRateEstimator
 from ambient.vitals.respiratory import RespiratoryRateEstimator
-from ambient.vitals.filters import BandpassFilter
 
 if TYPE_CHECKING:
 	from ambient.processing.pipeline import ProcessedFrame

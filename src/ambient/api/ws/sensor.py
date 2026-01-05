@@ -5,8 +5,8 @@ import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from .manager import manager
 from ..state import get_app_state
+from .manager import manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

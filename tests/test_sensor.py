@@ -1,9 +1,9 @@
 """Tests for sensor module."""
 
-import pytest
 import numpy as np
+import pytest
 
-from ambient.sensor.frame import FrameHeader, DetectedPoint, RadarFrame, FrameBuffer, MAGIC_WORD
+from ambient.sensor.frame import DetectedPoint, FrameBuffer, FrameHeader, RadarFrame
 
 
 class TestFrameHeader:

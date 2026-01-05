@@ -5,9 +5,11 @@ import json
 import os
 from pathlib import Path
 
+import aiofiles
+
 from fastapi import APIRouter, HTTPException
 
-from ..schemas import ConfigProfile, ChirpParams, FrameParams
+from ..schemas import ChirpParams, ConfigProfile, FrameParams
 from ..state import get_app_state
 
 router = APIRouter(prefix="/api/config", tags=["config"])
@@ -21,31 +23,31 @@ def get_profiles_file() -> Path:
 	return get_config_dir() / "profiles.json"
 
 
-def load_profiles() -> dict[str, ConfigProfile]:
+async def load_profiles() -> dict[str, ConfigProfile]:
 	"""Load saved config profiles."""
 	path = get_profiles_file()
 	if not path.exists():
 		return {}
 	try:
-		with open(path) as f:
-			data = json.load(f)
+		async with aiofiles.open(path) as f:
+			data = json.loads(await f.read())
 		return {name: ConfigProfile(**profile) for name, profile in data.items()}
 	except Exception:
 		return {}
 
 
-def save_profiles(profiles: dict[str, ConfigProfile]):
+async def save_profiles(profiles: dict[str, ConfigProfile]):
 	"""Save config profiles."""
 	path = get_profiles_file()
 	path.parent.mkdir(exist_ok=True)
-	with open(path, "w") as f:
-		json.dump({name: p.model_dump() for name, p in profiles.items()}, f, indent=2)
+	async with aiofiles.open(path, "w") as f:
+		await f.write(json.dumps({name: p.model_dump() for name, p in profiles.items()}, indent=2))
 
 
 @router.get("/profiles", response_model=list[ConfigProfile])
 async def list_profiles():
 	"""List all saved configuration profiles."""
-	profiles = load_profiles()
+	profiles = await load_profiles()
 
 	# Add default profile if not exists
 	if "default" not in profiles:
@@ -62,7 +64,7 @@ async def list_profiles():
 @router.get("/profiles/{name}", response_model=ConfigProfile)
 async def get_profile(name: str):
 	"""Get a specific configuration profile."""
-	profiles = load_profiles()
+	profiles = await load_profiles()
 	if name not in profiles:
 		if name == "default":
 			return ConfigProfile(
@@ -78,21 +80,21 @@ async def get_profile(name: str):
 @router.post("/profiles", response_model=ConfigProfile)
 async def create_profile(profile: ConfigProfile):
 	"""Create a new configuration profile."""
-	profiles = load_profiles()
+	profiles = await load_profiles()
 	if profile.name in profiles:
 		raise HTTPException(status_code=400, detail="Profile already exists")
 	profiles[profile.name] = profile
-	save_profiles(profiles)
+	await save_profiles(profiles)
 	return profile
 
 
 @router.put("/profiles/{name}", response_model=ConfigProfile)
 async def update_profile(name: str, profile: ConfigProfile):
 	"""Update an existing configuration profile."""
-	profiles = load_profiles()
+	profiles = await load_profiles()
 	profile.name = name  # Ensure name matches
 	profiles[name] = profile
-	save_profiles(profiles)
+	await save_profiles(profiles)
 	return profile
 
 
@@ -101,11 +103,11 @@ async def delete_profile(name: str):
 	"""Delete a configuration profile."""
 	if name == "default":
 		raise HTTPException(status_code=400, detail="Cannot delete default profile")
-	profiles = load_profiles()
+	profiles = await load_profiles()
 	if name not in profiles:
 		raise HTTPException(status_code=404, detail="Profile not found")
 	del profiles[name]
-	save_profiles(profiles)
+	await save_profiles(profiles)
 	return {"deleted": name}
 
 
@@ -117,7 +119,7 @@ async def flash_config(profile_name: str = "default"):
 	if state.device.state.value not in ("configuring", "streaming"):
 		raise HTTPException(status_code=400, detail="Device must be connected to flash config")
 
-	profiles = load_profiles()
+	profiles = await load_profiles()
 	if profile_name not in profiles and profile_name != "default":
 		raise HTTPException(status_code=404, detail="Profile not found")
 
@@ -133,7 +135,7 @@ async def flash_config(profile_name: str = "default"):
 		profile = profiles[profile_name]
 
 	# Convert profile to ChirpConfig commands
-	from ambient.sensor.config import ChirpConfig, ProfileConfig, FrameConfig
+	from ambient.sensor.config import ChirpConfig, FrameConfig, ProfileConfig
 
 	chirp_config = ChirpConfig(
 		profile=ProfileConfig(

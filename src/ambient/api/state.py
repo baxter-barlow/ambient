@@ -5,9 +5,10 @@ import asyncio
 import logging
 import time
 from collections import deque
+from collections.abc import Callable
 from pathlib import Path
 from threading import Lock
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from .schemas import (
 	AlgorithmParams,
@@ -17,10 +18,10 @@ from .schemas import (
 )
 
 if TYPE_CHECKING:
-	from ambient.sensor.radar import RadarSensor
 	from ambient.processing.pipeline import ProcessingPipeline
-	from ambient.vitals.extractor import VitalsExtractor
+	from ambient.sensor.radar import RadarSensor
 	from ambient.storage.writer import HDF5Writer, ParquetWriter
+	from ambient.vitals.extractor import VitalsExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -115,9 +116,9 @@ class DeviceStateMachine:
 			return False
 
 		try:
-			from ambient.sensor.radar import RadarSensor
-			from ambient.sensor.config import SerialConfig
 			from ambient.processing.pipeline import ProcessingPipeline
+			from ambient.sensor.config import SerialConfig
+			from ambient.sensor.radar import RadarSensor
 			from ambient.vitals.extractor import VitalsExtractor
 
 			self._cli_port = cli_port
@@ -248,7 +249,8 @@ class RecordingManager:
 
 		if format == "h5":
 			path = self.data_dir / f"{self._recording_id}.h5"
-			self._writer = HDF5Writer(path, session_id=self._recording_id)
+			from ambient.storage.writer import SessionMetadata
+			self._writer = HDF5Writer(path, metadata=SessionMetadata(session_id=self._recording_id))
 		else:
 			path = self.data_dir / f"{self._recording_id}.parquet"
 			self._writer = ParquetWriter(path)

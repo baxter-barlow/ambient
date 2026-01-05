@@ -5,9 +5,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 import numpy as np
+import structlog
 from numpy.typing import NDArray
 from scipy import signal as sp_signal
-import structlog
 
 logger = structlog.get_logger(__name__)
 

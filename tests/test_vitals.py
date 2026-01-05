@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from ambient.vitals.filters import BandpassFilter, MedianFilter, ExponentialSmoother
-from ambient.vitals.extractor import VitalSigns, VitalsExtractor
+from ambient.vitals.extractor import VitalsExtractor, VitalSigns
+from ambient.vitals.filters import BandpassFilter, ExponentialSmoother, MedianFilter
 from ambient.vitals.heart_rate import HeartRateEstimator
 from ambient.vitals.respiratory import RespiratoryRateEstimator
 

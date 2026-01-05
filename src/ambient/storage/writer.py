@@ -105,9 +105,9 @@ class HDF5Writer(DataWriter):
 
 	def write_frame(self, frame: RadarFrame) -> None:
 		fg = self._frames_group.create_group(f"frame_{self._frame_count:08d}")
-		fg.attrs["frame_number"] = frame.header.frame_number
+		fg.attrs["frame_number"] = frame.header.frame_number if frame.header else 0
 		fg.attrs["timestamp"] = frame.timestamp
-		fg.attrs["num_detected"] = frame.header.num_detected_obj
+		fg.attrs["num_detected"] = frame.header.num_detected_obj if frame.header else 0
 
 		if frame.raw_data:
 			fg.create_dataset("raw", data=np.frombuffer(frame.raw_data, dtype=np.uint8), compression=self.compression)

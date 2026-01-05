@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 
+import aiofiles
+
 from fastapi import APIRouter, HTTPException
 
 from ..schemas import AlgorithmParams, ParamPreset
@@ -18,31 +20,31 @@ def get_presets_file() -> Path:
 	return config_dir / "param_presets.json"
 
 
-def load_presets() -> dict[str, ParamPreset]:
+async def load_presets() -> dict[str, ParamPreset]:
 	"""Load saved parameter presets."""
 	path = get_presets_file()
 	if not path.exists():
 		return {}
 	try:
-		with open(path) as f:
-			data = json.load(f)
+		async with aiofiles.open(path) as f:
+			data = json.loads(await f.read())
 		return {name: ParamPreset(**preset) for name, preset in data.items()}
 	except Exception:
 		return {}
 
 
-def save_presets(presets: dict[str, ParamPreset]):
+async def save_presets(presets: dict[str, ParamPreset]):
 	"""Save parameter presets."""
 	path = get_presets_file()
 	path.parent.mkdir(exist_ok=True)
-	with open(path, "w") as f:
-		json.dump({name: p.model_dump() for name, p in presets.items()}, f, indent=2)
+	async with aiofiles.open(path, "w") as f:
+		await f.write(json.dumps({name: p.model_dump() for name, p in presets.items()}, indent=2))
 
 
 @router.get("/presets", response_model=list[ParamPreset])
 async def list_presets():
 	"""List all saved parameter presets."""
-	presets = load_presets()
+	presets = await load_presets()
 
 	# Add default preset
 	if "default" not in presets:
@@ -96,11 +98,11 @@ async def update_current_params(params: AlgorithmParams):
 @router.post("/presets", response_model=ParamPreset)
 async def create_preset(preset: ParamPreset):
 	"""Save current parameters as a preset."""
-	presets = load_presets()
+	presets = await load_presets()
 	if preset.name in presets:
 		raise HTTPException(status_code=400, detail="Preset already exists")
 	presets[preset.name] = preset
-	save_presets(presets)
+	await save_presets(presets)
 	return preset
 
 
@@ -109,18 +111,18 @@ async def delete_preset(name: str):
 	"""Delete a parameter preset."""
 	if name == "default":
 		raise HTTPException(status_code=400, detail="Cannot delete default preset")
-	presets = load_presets()
+	presets = await load_presets()
 	if name not in presets:
 		raise HTTPException(status_code=404, detail="Preset not found")
 	del presets[name]
-	save_presets(presets)
+	await save_presets(presets)
 	return {"deleted": name}
 
 
 @router.post("/presets/{name}/apply", response_model=AlgorithmParams)
 async def apply_preset(name: str):
 	"""Apply a preset to current parameters."""
-	presets = load_presets()
+	presets = await load_presets()
 	if name not in presets and name != "default":
 		raise HTTPException(status_code=404, detail="Preset not found")
 
