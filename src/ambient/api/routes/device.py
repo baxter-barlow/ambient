@@ -4,9 +4,10 @@ from __future__ import annotations
 import glob
 import logging
 
+import serial
 from fastapi import APIRouter, HTTPException
 
-from ..schemas import ConnectRequest, DeviceStatus, SerialPort
+from ..schemas import ConnectRequest, DeviceStatus, PortStatus, PortVerifyRequest, PortVerifyResult, SerialPort
 from ..state import get_app_state
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,62 @@ async def list_ports():
 			ports.append(SerialPort(device=path, description=path.split("/")[-1]))
 
 	return ports
+
+
+@router.post("/verify-ports", response_model=PortVerifyResult)
+async def verify_ports(request: PortVerifyRequest):
+	"""Verify serial ports before connecting."""
+	cli_result = PortStatus(path=request.cli_port, status="unknown", details="")
+	data_result = PortStatus(path=request.data_port, status="unknown", details="")
+
+	# Test CLI port
+	try:
+		ser = serial.Serial(request.cli_port, 115200, timeout=2)
+		ser.reset_input_buffer()
+		ser.write(b"version\n")
+		import time
+		time.sleep(0.3)
+		response = ser.read(ser.in_waiting or 100)
+		ser.close()
+
+		if b"mmWave" in response or b"IWR" in response or b"SDK" in response:
+			cli_result.status = "ok"
+			cli_result.details = response.decode(errors="ignore").strip()[:80]
+		elif response:
+			cli_result.status = "warning"
+			cli_result.details = f"Unexpected response: {response.decode(errors='ignore')[:40]}"
+		else:
+			cli_result.status = "warning"
+			cli_result.details = "Port opened but no response to version query"
+	except serial.SerialException as e:
+		cli_result.status = "error"
+		cli_result.details = str(e)
+	except Exception as e:
+		cli_result.status = "error"
+		cli_result.details = f"Unexpected error: {e}"
+
+	# Test Data port
+	try:
+		ser = serial.Serial(request.data_port, 921600, timeout=1)
+		ser.close()
+		data_result.status = "ok"
+		data_result.details = "Port accessible at 921600 baud"
+	except serial.SerialException as e:
+		data_result.status = "error"
+		data_result.details = str(e)
+	except Exception as e:
+		data_result.status = "error"
+		data_result.details = f"Unexpected error: {e}"
+
+	# Determine overall status
+	if cli_result.status == "ok" and data_result.status == "ok":
+		overall = "pass"
+	elif cli_result.status == "error" or data_result.status == "error":
+		overall = "fail"
+	else:
+		overall = "warning"
+
+	return PortVerifyResult(cli_port=cli_result, data_port=data_result, overall=overall)
 
 
 @router.post("/connect", response_model=DeviceStatus)

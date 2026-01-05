@@ -44,7 +44,12 @@ def frame_to_dict(frame, processed=None) -> dict:
 		result["range_doppler"] = heatmap.tolist()
 
 	if processed and processed.phase_data is not None:
-		result["phase"] = float(processed.phase_data)
+		# Handle both scalar and array phase_data
+		pd = processed.phase_data
+		if hasattr(pd, 'ndim') and pd.ndim > 0:
+			result["phase"] = float(pd[0]) if pd.size > 0 else 0.0
+		else:
+			result["phase"] = float(pd)
 
 	return result
 

@@ -21,6 +21,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const deviceApi = {
 	getStatus: () => request<import('../types').DeviceStatus>('/device/status'),
 	getPorts: () => request<import('../types').SerialPort[]>('/device/ports'),
+	verifyPorts: (cliPort: string, dataPort: string) =>
+		request<import('../types').PortVerifyResult>('/device/verify-ports', {
+			method: 'POST',
+			body: JSON.stringify({ cli_port: cliPort, data_port: dataPort }),
+		}),
 	connect: (cliPort: string, dataPort: string, config?: string) =>
 		request<import('../types').DeviceStatus>('/device/connect', {
 			method: 'POST',

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
 
@@ -8,9 +8,29 @@ interface Props {
 	height?: number
 }
 
-export default function RangeProfile({ data, width = 600, height = 200 }: Props) {
+export default function RangeProfile({ data, width = 600, height = 300 }: Props) {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const chartRef = useRef<uPlot | null>(null)
+	const [yRange, setYRange] = useState<[number, number]>([0, 1])
+
+	// Stabilize Y-axis with smoothing
+	useEffect(() => {
+		if (data.length === 0) return
+		const max = Math.max(...data)
+		const min = Math.min(...data)
+		setYRange(prev => [
+			prev[0] * 0.9 + min * 0.1,
+			Math.max(prev[1] * 0.9 + max * 0.1, max * 1.1),
+		])
+	}, [data])
+
+	// Stats for display
+	const stats = useMemo(() => {
+		if (data.length === 0) return null
+		const max = Math.max(...data)
+		const mean = data.reduce((a, b) => a + b, 0) / data.length
+		return { max: max.toFixed(1), mean: mean.toFixed(1) }
+	}, [data])
 
 	useEffect(() => {
 		if (!containerRef.current) return
@@ -21,32 +41,32 @@ export default function RangeProfile({ data, width = 600, height = 200 }: Props)
 			title: 'Range Profile',
 			scales: {
 				x: { time: false },
-				y: { auto: true },
+				y: { auto: false, range: () => yRange },
 			},
 			axes: [
 				{
-					stroke: '#6b7280',
-					grid: { stroke: '#374151' },
+					stroke: '#9ca3af',
+					grid: { stroke: '#374151', width: 1 },
 					ticks: { stroke: '#4b5563' },
 					label: 'Range Bin',
-					labelSize: 12,
-					font: '11px sans-serif',
+					labelSize: 14,
+					font: '12px sans-serif',
 				},
 				{
-					stroke: '#6b7280',
-					grid: { stroke: '#374151' },
+					stroke: '#9ca3af',
+					grid: { stroke: '#374151', width: 1 },
 					ticks: { stroke: '#4b5563' },
-					label: 'Magnitude',
-					labelSize: 12,
-					font: '11px sans-serif',
+					label: 'Magnitude (dB)',
+					labelSize: 14,
+					font: '12px sans-serif',
 				},
 			],
 			series: [
 				{},
 				{
 					stroke: '#22c55e',
-					width: 1.5,
-					fill: 'rgba(34, 197, 94, 0.1)',
+					width: 2,
+					fill: 'rgba(34, 197, 94, 0.15)',
 				},
 			],
 		}
@@ -59,6 +79,13 @@ export default function RangeProfile({ data, width = 600, height = 200 }: Props)
 		}
 	}, [width, height])
 
+	// Update Y range when it changes
+	useEffect(() => {
+		if (chartRef.current) {
+			chartRef.current.scales.y.range = () => yRange
+		}
+	}, [yRange])
+
 	useEffect(() => {
 		if (!chartRef.current || data.length === 0) return
 
@@ -67,9 +94,16 @@ export default function RangeProfile({ data, width = 600, height = 200 }: Props)
 	}, [data])
 
 	return (
-		<div
-			ref={containerRef}
-			className="bg-gray-800 rounded-lg p-2"
-		/>
+		<div className="bg-gray-800 rounded-lg p-3">
+			<div className="flex justify-between items-center mb-2">
+				<span className="text-sm text-gray-400">Range Profile</span>
+				{stats && (
+					<span className="text-xs text-gray-500">
+						Max: {stats.max} | Mean: {stats.mean}
+					</span>
+				)}
+			</div>
+			<div ref={containerRef} />
+		</div>
 	)
 }

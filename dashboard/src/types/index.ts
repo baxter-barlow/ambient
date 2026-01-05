@@ -17,6 +17,18 @@ export interface SerialPort {
 	description: string
 }
 
+export interface PortStatus {
+	path: string
+	status: 'ok' | 'warning' | 'error' | 'unknown'
+	details: string
+}
+
+export interface PortVerifyResult {
+	cli_port: PortStatus
+	data_port: PortStatus
+	overall: 'pass' | 'warning' | 'fail'
+}
+
 export interface DetectedPoint {
 	x: number
 	y: number
