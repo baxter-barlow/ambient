@@ -53,6 +53,10 @@ export interface VitalSigns {
 	respiratory_rate_confidence: number
 	signal_quality: number
 	motion_detected: boolean
+	source: 'firmware' | 'estimated'
+	breathing_waveform?: number[]
+	heart_waveform?: number[]
+	unwrapped_phase?: number
 }
 
 export interface WSMessage<T = unknown> {

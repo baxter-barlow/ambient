@@ -72,6 +72,7 @@ export const paramsApi = {
 			method: 'PUT',
 			body: JSON.stringify(params),
 		}),
+	listPresets: () => request<{ name: string; description: string; params: import('../types').AlgorithmParams }[]>('/params/presets'),
 }
 
 // Tests endpoints

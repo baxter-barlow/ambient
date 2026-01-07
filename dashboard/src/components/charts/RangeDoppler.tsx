@@ -1,18 +1,49 @@
 import { useEffect, useRef } from 'react'
+import ChartContainer from '../common/ChartContainer'
 
 interface Props {
 	data: number[][] | undefined
 	width?: number
 	height?: number
+	isLoading?: boolean
 }
 
+// Perceptually uniform colormap: dark gray -> teal -> orange -> yellow/white
 function valueToColor(value: number, min: number, max: number): string {
 	const normalized = Math.max(0, Math.min(1, (value - min) / (max - min)))
-	const hue = (1 - normalized) * 240 // Blue to red
-	return `hsl(${hue}, 80%, ${30 + normalized * 40}%)`
+
+	if (normalized < 0.25) {
+		// Dark gray to dark teal
+		const t = normalized / 0.25
+		const r = Math.round(50 + t * (-50 + 0))
+		const g = Math.round(53 + t * (-53 + 100))
+		const b = Math.round(64 + t * (-64 + 90))
+		return `rgb(${r}, ${g}, ${b})`
+	} else if (normalized < 0.5) {
+		// Dark teal to teal
+		const t = (normalized - 0.25) / 0.25
+		const r = Math.round(0 + t * 0)
+		const g = Math.round(100 + t * 68)
+		const b = Math.round(90 + t * 60)
+		return `rgb(${r}, ${g}, ${b})`
+	} else if (normalized < 0.75) {
+		// Teal to orange
+		const t = (normalized - 0.5) / 0.25
+		const r = Math.round(0 + t * 239)
+		const g = Math.round(168 + t * (-62))
+		const b = Math.round(150 + t * (-82))
+		return `rgb(${r}, ${g}, ${b})`
+	} else {
+		// Orange to yellow/white
+		const t = (normalized - 0.75) / 0.25
+		const r = Math.round(239 + t * 16)
+		const g = Math.round(106 + t * 85)
+		const b = Math.round(68 + t * 68)
+		return `rgb(${r}, ${g}, ${b})`
+	}
 }
 
-export default function RangeDoppler({ data, width = 300, height = 300 }: Props) {
+export default function RangeDoppler({ data, width = 300, height = 300, isLoading = false }: Props) {
 	const canvasRef = useRef<HTMLCanvasElement>(null)
 
 	useEffect(() => {
@@ -47,22 +78,26 @@ export default function RangeDoppler({ data, width = 300, height = 300 }: Props)
 		}
 	}, [data, width, height])
 
+	const hasDimensions = data && data.length > 0 && data[0]?.length > 0
+	const isEmpty = !hasDimensions && !isLoading
+
 	return (
-		<div className="bg-gray-800 rounded-lg p-3">
-			<div className="text-sm text-gray-400 mb-2">Range-Doppler Map</div>
-			<div className="relative">
-				<canvas
-					ref={canvasRef}
-					width={width}
-					height={height}
-					className="border border-gray-700"
-				/>
-				{(!data || data.length === 0) && (
-					<div className="absolute inset-0 flex items-center justify-center text-gray-500 bg-gray-900/50">
-						No data
-					</div>
-				)}
-			</div>
-		</div>
+		<ChartContainer
+			title="Range-Doppler Map"
+			subtitle={hasDimensions ? `${data.length} x ${data[0].length}` : undefined}
+			isLoading={isLoading}
+			isEmpty={isEmpty}
+			emptyMessage="Waiting for range-Doppler data..."
+			loadingMessage="Loading range-Doppler map..."
+			width={width}
+			height={height}
+		>
+			<canvas
+				ref={canvasRef}
+				width={width}
+				height={height}
+				className="border border-border"
+			/>
+		</ChartContainer>
 	)
 }

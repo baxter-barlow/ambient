@@ -1,11 +1,11 @@
 import type { WSMessage } from '../types'
 
-type MessageHandler = (message: WSMessage) => void
+type MessageHandler<T = unknown> = (message: WSMessage<T>) => void
 
 export class WebSocketClient {
 	private ws: WebSocket | null = null
 	private url: string
-	private handlers: Map<string, Set<MessageHandler>> = new Map()
+	private handlers: Map<string, Set<MessageHandler<unknown>>> = new Map()
 	private reconnectAttempts = 0
 	private maxReconnectAttempts = 10
 	private reconnectDelay = 1000
@@ -72,16 +72,16 @@ export class WebSocketClient {
 		}
 	}
 
-	on(type: string, handler: MessageHandler) {
+	on<T = unknown>(type: string, handler: MessageHandler<T>) {
 		if (!this.handlers.has(type)) {
 			this.handlers.set(type, new Set())
 		}
-		this.handlers.get(type)!.add(handler)
+		this.handlers.get(type)!.add(handler as MessageHandler<unknown>)
 		return () => this.off(type, handler)
 	}
 
-	off(type: string, handler: MessageHandler) {
-		this.handlers.get(type)?.delete(handler)
+	off<T = unknown>(type: string, handler: MessageHandler<T>) {
+		this.handlers.get(type)?.delete(handler as MessageHandler<unknown>)
 	}
 
 	private dispatch(message: WSMessage) {
