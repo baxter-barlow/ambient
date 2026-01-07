@@ -135,3 +135,68 @@ class ExponentialSmoother(Filter):
 
 	def reset(self) -> None:
 		self._value = None
+
+
+class PhaseUnwrapper:
+	"""Phase unwrapping for continuous phase tracking.
+
+	Handles 2π discontinuities in wrapped phase data to produce
+	a continuous unwrapped signal for vital signs extraction.
+	"""
+
+	def __init__(self, max_jump: float = np.pi) -> None:
+		"""
+		Args:
+			max_jump: Maximum expected phase jump between samples (radians).
+				Values above this trigger unwrapping. Default π.
+		"""
+		self.max_jump = max_jump
+		self._last_phase: float | None = None
+		self._cumulative_offset: float = 0.0
+
+	def unwrap_sample(self, phase: float) -> float:
+		"""Unwrap a single phase sample.
+
+		Args:
+			phase: Wrapped phase in radians (-π to +π)
+
+		Returns:
+			Unwrapped phase (continuous, unbounded)
+		"""
+		if self._last_phase is None:
+			self._last_phase = phase
+			return phase + self._cumulative_offset
+
+		delta = phase - self._last_phase
+
+		# Detect and correct 2π discontinuities
+		if delta > self.max_jump:
+			self._cumulative_offset -= 2 * np.pi
+		elif delta < -self.max_jump:
+			self._cumulative_offset += 2 * np.pi
+
+		self._last_phase = phase
+		return phase + self._cumulative_offset
+
+	def unwrap_array(self, phases: NDArray) -> NDArray[np.float32]:
+		"""Unwrap an array of phase values.
+
+		Args:
+			phases: Array of wrapped phases in radians
+
+		Returns:
+			Unwrapped phase array
+		"""
+		if len(phases) == 0:
+			return np.array([], dtype=np.float32)
+		return np.unwrap(phases).astype(np.float32)
+
+	def reset(self) -> None:
+		"""Reset unwrapper state."""
+		self._last_phase = None
+		self._cumulative_offset = 0.0
+
+	@property
+	def cumulative_phase(self) -> float:
+		"""Total accumulated phase offset."""
+		return self._cumulative_offset

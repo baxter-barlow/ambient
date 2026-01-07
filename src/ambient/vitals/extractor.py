@@ -9,12 +9,13 @@ import numpy as np
 import structlog
 from numpy.typing import NDArray
 
-from ambient.vitals.filters import BandpassFilter
+from ambient.vitals.filters import BandpassFilter, PhaseUnwrapper
 from ambient.vitals.heart_rate import HeartRateEstimator
 from ambient.vitals.respiratory import RespiratoryRateEstimator
 
 if TYPE_CHECKING:
 	from ambient.processing.pipeline import ProcessedFrame
+	from ambient.sensor.frame import ChirpPhaseOutput, RadarFrame
 
 logger = structlog.get_logger(__name__)
 
@@ -31,6 +32,8 @@ class VitalSigns:
 	signal_quality: float = 0.0
 	motion_detected: bool = False
 	timestamp: float = 0.0
+	source: str = "estimated"  # "firmware" or "estimated"
+	unwrapped_phase: float | None = None
 
 	def is_valid(self, min_confidence: float = 0.5) -> bool:
 		hr_ok = (
@@ -44,6 +47,23 @@ class VitalSigns:
 			and self.respiratory_rate_confidence >= min_confidence
 		)
 		return hr_ok and rr_ok
+
+	@classmethod
+	def from_firmware(cls, vital_signs_tlv, timestamp: float = 0.0) -> VitalSigns:
+		"""Create VitalSigns from firmware-provided VitalSignsTLV data."""
+		return cls(
+			heart_rate_bpm=vital_signs_tlv.heart_rate,
+			heart_rate_confidence=vital_signs_tlv.heart_confidence,
+			heart_rate_waveform=vital_signs_tlv.heart_waveform,
+			respiratory_rate_bpm=vital_signs_tlv.breathing_rate,
+			respiratory_rate_confidence=vital_signs_tlv.breathing_confidence,
+			respiratory_waveform=vital_signs_tlv.breathing_waveform,
+			signal_quality=(vital_signs_tlv.heart_confidence + vital_signs_tlv.breathing_confidence) / 2,
+			motion_detected=False,
+			timestamp=timestamp,
+			source="firmware",
+			unwrapped_phase=vital_signs_tlv.unwrapped_phase,
+		)
 
 
 @dataclass
@@ -152,3 +172,174 @@ class VitalsExtractor:
 	@property
 	def buffer_fullness(self) -> float:
 		return len(self._phase_buffer) / self._buffer_size
+
+
+class ChirpVitalsProcessor:
+	"""Vital signs extraction from chirp firmware PHASE_OUTPUT TLV.
+
+	This processor is designed for use with chirp firmware's PHASE output
+	mode (TLV 0x0520), which provides pre-computed phase and magnitude
+	for selected target bins.
+
+	Example:
+		processor = ChirpVitalsProcessor()
+		for frame in frame_stream:
+			if frame.chirp_phase:
+				vitals = processor.process_chirp_phase(frame.chirp_phase)
+				if vitals.is_valid():
+					print(f"HR: {vitals.heart_rate_bpm:.1f} BPM")
+	"""
+
+	def __init__(self, config: VitalsConfig | None = None) -> None:
+		self.config = config or VitalsConfig()
+		self._buffer_size = int(self.config.window_seconds * self.config.sample_rate_hz)
+
+		# Phase tracking
+		self._unwrapper = PhaseUnwrapper()
+		self._phase_buffer: list[float] = []
+		self._timestamp_buffer: list[float] = []
+		self._magnitude_buffer: list[float] = []
+
+		# Rate estimators
+		self._hr_estimator = HeartRateEstimator(
+			sample_rate_hz=self.config.sample_rate_hz,
+			freq_min_hz=self.config.hr_freq_min_hz,
+			freq_max_hz=self.config.hr_freq_max_hz,
+		)
+		self._rr_estimator = RespiratoryRateEstimator(
+			sample_rate_hz=self.config.sample_rate_hz,
+			freq_min_hz=self.config.rr_freq_min_hz,
+			freq_max_hz=self.config.rr_freq_max_hz,
+		)
+
+		# Bandpass filters
+		self._hr_filter = BandpassFilter(
+			sample_rate_hz=self.config.sample_rate_hz,
+			low_freq_hz=self.config.hr_freq_min_hz,
+			high_freq_hz=self.config.hr_freq_max_hz,
+			order=self.config.hr_filter_order,
+		)
+		self._rr_filter = BandpassFilter(
+			sample_rate_hz=self.config.sample_rate_hz,
+			low_freq_hz=self.config.rr_freq_min_hz,
+			high_freq_hz=self.config.rr_freq_max_hz,
+			order=self.config.rr_filter_order,
+		)
+		logger.info(
+			"chirp_vitals_processor_init",
+			sample_rate=self.config.sample_rate_hz,
+			window_seconds=self.config.window_seconds,
+		)
+
+	def process_chirp_phase(
+		self, phase_output: ChirpPhaseOutput, timestamp: float | None = None
+	) -> VitalSigns:
+		"""Process a chirp PHASE_OUTPUT TLV and extract vital signs.
+
+		Args:
+			phase_output: Parsed ChirpPhaseOutput from frame
+			timestamp: Optional timestamp (uses phase_output.timestamp_us if not provided)
+
+		Returns:
+			VitalSigns with extracted heart rate and respiratory rate
+		"""
+		if timestamp is None:
+			timestamp = phase_output.timestamp_us / 1_000_000.0
+
+		result = VitalSigns(timestamp=timestamp, source="chirp")
+
+		# Get phase from center bin
+		phase = phase_output.get_center_phase()
+		if phase is None:
+			return result
+
+		# Check for motion
+		has_motion = any(b.has_motion for b in phase_output.bins if b.is_valid)
+		result.motion_detected = has_motion
+
+		# Compute average magnitude for signal quality
+		valid_bins = [b for b in phase_output.bins if b.is_valid]
+		if valid_bins:
+			avg_magnitude = sum(b.magnitude for b in valid_bins) / len(valid_bins)
+			self._magnitude_buffer.append(avg_magnitude)
+			if len(self._magnitude_buffer) > self._buffer_size:
+				self._magnitude_buffer = self._magnitude_buffer[-self._buffer_size:]
+
+		# Unwrap phase and buffer
+		unwrapped = self._unwrapper.unwrap_sample(phase)
+		result.unwrapped_phase = unwrapped
+
+		self._phase_buffer.append(unwrapped)
+		self._timestamp_buffer.append(timestamp)
+
+		if len(self._phase_buffer) > self._buffer_size:
+			self._phase_buffer = self._phase_buffer[-self._buffer_size:]
+			self._timestamp_buffer = self._timestamp_buffer[-self._buffer_size:]
+
+		# Need minimum samples
+		min_samples = int(self.config.sample_rate_hz * 5)
+		if len(self._phase_buffer) < min_samples:
+			return result
+
+		# Skip if excessive motion
+		if has_motion:
+			return result
+
+		# Extract phase signal
+		phase_signal = np.array(self._phase_buffer, dtype=np.float32)
+		result.phase_signal = phase_signal
+
+		# Filter for heart rate and respiratory bands
+		hr_filtered = self._hr_filter.process(phase_signal)
+		result.heart_rate_waveform = hr_filtered
+
+		rr_filtered = self._rr_filter.process(phase_signal)
+		result.respiratory_waveform = rr_filtered
+
+		# Estimate rates
+		hr, hr_conf = self._hr_estimator.estimate(hr_filtered)
+		result.heart_rate_bpm = hr
+		result.heart_rate_confidence = hr_conf
+
+		rr, rr_conf = self._rr_estimator.estimate(rr_filtered)
+		result.respiratory_rate_bpm = rr
+		result.respiratory_rate_confidence = rr_conf
+
+		result.signal_quality = (hr_conf + rr_conf) / 2
+		return result
+
+	def process_frame(self, frame: RadarFrame) -> VitalSigns | None:
+		"""Process a RadarFrame containing chirp TLVs.
+
+		Args:
+			frame: RadarFrame with parsed chirp TLVs
+
+		Returns:
+			VitalSigns if chirp_phase is present, None otherwise
+		"""
+		if frame.chirp_phase is None:
+			return None
+		return self.process_chirp_phase(frame.chirp_phase, frame.timestamp)
+
+	def reset(self) -> None:
+		"""Reset processor state."""
+		self._phase_buffer.clear()
+		self._timestamp_buffer.clear()
+		self._magnitude_buffer.clear()
+		self._unwrapper.reset()
+		self._hr_estimator.reset()
+		self._rr_estimator.reset()
+		self._hr_filter.reset()
+		self._rr_filter.reset()
+		logger.info("chirp_vitals_processor_reset")
+
+	@property
+	def buffer_fullness(self) -> float:
+		"""Fraction of buffer filled (0.0 to 1.0)."""
+		return len(self._phase_buffer) / self._buffer_size
+
+	@property
+	def is_ready(self) -> bool:
+		"""True when enough samples collected for estimation."""
+		min_samples = int(self.config.sample_rate_hz * 5)
+		return len(self._phase_buffer) >= min_samples
