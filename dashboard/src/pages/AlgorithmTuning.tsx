@@ -59,7 +59,7 @@ export default function AlgorithmTuning() {
 		}
 	}
 
-	if (!params) return <div>Loading...</div>
+	if (!params) return <div className="text-text-tertiary">Loading...</div>
 
 	const sliderParams = [
 		{ key: 'hr_low_hz', label: 'HR Low (Hz)', min: 0.5, max: 1.5, step: 0.05 },
@@ -70,10 +70,10 @@ export default function AlgorithmTuning() {
 	] as const
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-5">
 			<div className="flex items-center justify-between">
-				<h2 className="text-xl font-semibold">Algorithm Tuning</h2>
-				<div className="flex gap-2">
+				<h2 className="text-xl text-text-primary">Algorithm Tuning</h2>
+				<div className="flex gap-3">
 					<Button onClick={handleApply} disabled={!modified}>
 						Apply Changes
 					</Button>
@@ -83,20 +83,22 @@ export default function AlgorithmTuning() {
 				</div>
 			</div>
 
-			<div className="grid grid-cols-3 gap-6">
+			<div className="grid grid-cols-3 gap-4">
 				{/* Presets */}
-				<div className="bg-gray-800 rounded-lg p-4">
-					<h3 className="text-lg font-medium mb-4">Presets</h3>
-					<div className="space-y-2">
+				<div className="bg-surface-2 border border-border rounded-card">
+					<div className="px-4 py-3 border-b border-border">
+						<span className="text-base text-text-primary font-medium">Presets</span>
+					</div>
+					<div className="p-3 space-y-1">
 						{presets.map(preset => (
 							<button
 								key={preset.name}
 								onClick={() => handleApplyPreset(preset.name)}
-								className="w-full text-left p-3 rounded bg-gray-700 hover:bg-gray-600"
+								className="w-full text-left p-3 rounded bg-surface-3 hover:bg-surface-4 transition-colors"
 							>
-								<p className="font-medium">{preset.name}</p>
+								<p className="font-medium text-text-primary">{preset.name}</p>
 								{preset.description && (
-									<p className="text-sm text-gray-400">{preset.description}</p>
+									<p className="text-sm text-text-secondary">{preset.description}</p>
 								)}
 							</button>
 						))}
@@ -104,15 +106,16 @@ export default function AlgorithmTuning() {
 				</div>
 
 				{/* Parameters */}
-				<div className="col-span-2 bg-gray-800 rounded-lg p-4">
-					<h3 className="text-lg font-medium mb-4">Parameters</h3>
-
-					<div className="space-y-6">
+				<div className="col-span-2 bg-surface-2 border border-border rounded-card">
+					<div className="px-4 py-3 border-b border-border">
+						<span className="text-base text-text-primary font-medium">Parameters</span>
+					</div>
+					<div className="p-4 space-y-6">
 						{sliderParams.map(({ key, label, min, max, step }) => (
 							<div key={key}>
 								<div className="flex justify-between mb-2">
-									<label className="text-gray-300">{label}</label>
-									<span className="font-mono text-radar-400">
+									<label className="text-text-secondary">{label}</label>
+									<span className="font-mono text-accent-teal">
 										{params[key as keyof AlgorithmParams]}
 									</span>
 								</div>
@@ -123,9 +126,9 @@ export default function AlgorithmTuning() {
 									step={step}
 									value={params[key as keyof AlgorithmParams] as number}
 									onChange={e => handleChange(key as keyof AlgorithmParams, parseFloat(e.target.value))}
-									className="w-full"
+									className="w-full accent-accent-teal"
 								/>
-								<div className="flex justify-between text-xs text-gray-500">
+								<div className="flex justify-between text-xs text-text-tertiary font-mono">
 									<span>{min}</span>
 									<span>{max}</span>
 								</div>
@@ -134,11 +137,11 @@ export default function AlgorithmTuning() {
 
 						{/* Clutter method */}
 						<div>
-							<label className="block text-gray-300 mb-2">Clutter Removal</label>
+							<label className="block text-text-secondary mb-2">Clutter Removal</label>
 							<select
 								value={params.clutter_method}
 								onChange={e => handleChange('clutter_method', e.target.value)}
-								className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2"
+								className="w-full bg-surface-3 border border-border rounded px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-teal"
 							>
 								<option value="mti">MTI (Moving Target Indicator)</option>
 								<option value="moving_avg">Moving Average</option>
@@ -148,19 +151,19 @@ export default function AlgorithmTuning() {
 					</div>
 
 					{/* Frequency ranges visualization */}
-					<div className="mt-6 pt-6 border-t border-gray-700">
-						<h4 className="font-medium text-gray-300 mb-4">Frequency Ranges</h4>
+					<div className="mx-4 mb-4 pt-4 border-t border-border">
+						<h4 className="font-medium text-text-secondary mb-4">Frequency Ranges</h4>
 						<div className="space-y-4">
 							<div>
 								<div className="flex justify-between text-sm mb-1">
-									<span className="text-red-400">Heart Rate Band</span>
-									<span className="text-gray-400">
+									<span className="text-accent-red">Heart Rate Band</span>
+									<span className="text-text-tertiary font-mono">
 										{(params.hr_low_hz * 60).toFixed(0)} - {(params.hr_high_hz * 60).toFixed(0)} BPM
 									</span>
 								</div>
-								<div className="h-2 bg-gray-700 rounded relative">
+								<div className="h-2 bg-surface-3 rounded relative">
 									<div
-										className="absolute h-full bg-red-500 rounded"
+										className="absolute h-full bg-accent-red rounded"
 										style={{
 											left: `${(params.hr_low_hz / 4) * 100}%`,
 											width: `${((params.hr_high_hz - params.hr_low_hz) / 4) * 100}%`,
@@ -170,14 +173,14 @@ export default function AlgorithmTuning() {
 							</div>
 							<div>
 								<div className="flex justify-between text-sm mb-1">
-									<span className="text-blue-400">Respiratory Rate Band</span>
-									<span className="text-gray-400">
+									<span className="text-accent-blue">Respiratory Rate Band</span>
+									<span className="text-text-tertiary font-mono">
 										{(params.rr_low_hz * 60).toFixed(0)} - {(params.rr_high_hz * 60).toFixed(0)} BPM
 									</span>
 								</div>
-								<div className="h-2 bg-gray-700 rounded relative">
+								<div className="h-2 bg-surface-3 rounded relative">
 									<div
-										className="absolute h-full bg-blue-500 rounded"
+										className="absolute h-full bg-accent-blue rounded"
 										style={{
 											left: `${(params.rr_low_hz / 4) * 100}%`,
 											width: `${((params.rr_high_hz - params.rr_low_hz) / 4) * 100}%`,

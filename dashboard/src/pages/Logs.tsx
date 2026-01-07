@@ -32,11 +32,11 @@ export default function Logs() {
 
 	const getLevelColor = (level: string) => {
 		switch (level) {
-			case 'DEBUG': return 'text-gray-400'
-			case 'INFO': return 'text-blue-400'
-			case 'WARNING': return 'text-yellow-400'
-			case 'ERROR': return 'text-red-400'
-			default: return 'text-gray-400'
+			case 'DEBUG': return 'text-text-tertiary'
+			case 'INFO': return 'text-accent-blue'
+			case 'WARNING': return 'text-accent-amber'
+			case 'ERROR': return 'text-accent-red'
+			default: return 'text-text-tertiary'
 		}
 	}
 
@@ -63,20 +63,20 @@ export default function Logs() {
 	return (
 		<div className="space-y-4 h-full flex flex-col">
 			<div className="flex items-center justify-between">
-				<h2 className="text-xl font-semibold">Logs & Debugging</h2>
+				<h2 className="text-xl text-text-primary">Logs & Debugging</h2>
 				<div className="flex items-center gap-4">
 					{/* Level filter */}
 					<div className="flex items-center gap-2">
-						<span className="text-sm text-gray-400">Level:</span>
+						<span className="text-sm text-text-secondary">Level:</span>
 						{LEVELS.map(level => (
 							<button
 								key={level}
 								onClick={() => setFilter(level)}
 								className={clsx(
-									'px-2 py-1 text-xs rounded',
+									'px-2.5 py-1 text-xs rounded transition-colors duration-150',
 									filter === level
-										? 'bg-radar-600 text-white'
-										: 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+										? 'bg-accent-teal text-text-inverse font-semibold'
+										: 'bg-surface-3 text-text-secondary hover:bg-surface-4'
 								)}
 							>
 								{level}
@@ -90,15 +90,16 @@ export default function Logs() {
 						value={search}
 						onChange={e => setSearch(e.target.value)}
 						placeholder="Search..."
-						className="bg-gray-700 border border-gray-600 rounded px-3 py-1 text-sm w-48"
+						className="bg-surface-3 border border-border rounded px-3 py-1.5 text-sm w-48 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-teal"
 					/>
 
 					{/* Auto-scroll toggle */}
-					<label className="flex items-center gap-2 text-sm">
+					<label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
 						<input
 							type="checkbox"
 							checked={autoScroll}
 							onChange={e => setAutoScroll(e.target.checked)}
+							className="accent-accent-teal"
 						/>
 						Auto-scroll
 					</label>
@@ -111,25 +112,25 @@ export default function Logs() {
 			{/* Log viewer */}
 			<div
 				ref={containerRef}
-				className="flex-1 bg-gray-800 rounded-lg p-4 overflow-auto font-mono text-sm"
+				className="flex-1 bg-surface-2 border border-border rounded-card p-4 overflow-auto font-mono text-sm"
 			>
 				{filteredLogs.length === 0 ? (
-					<p className="text-gray-500">No logs matching filter.</p>
+					<p className="text-text-tertiary">No logs matching filter.</p>
 				) : (
 					<table className="w-full">
 						<tbody>
 							{filteredLogs.map((log, i) => (
-								<tr key={i} className="hover:bg-gray-700/50">
-									<td className="py-0.5 pr-4 text-gray-500 whitespace-nowrap">
+								<tr key={i} className="hover:bg-surface-3/50">
+									<td className="py-0.5 pr-4 text-text-tertiary whitespace-nowrap">
 										{formatTime(log.timestamp)}
 									</td>
 									<td className={clsx('py-0.5 pr-4 whitespace-nowrap', getLevelColor(log.level))}>
 										{log.level}
 									</td>
-									<td className="py-0.5 pr-4 text-gray-400 whitespace-nowrap">
+									<td className="py-0.5 pr-4 text-text-tertiary whitespace-nowrap">
 										{log.logger}
 									</td>
-									<td className="py-0.5 text-gray-200">
+									<td className="py-0.5 text-text-primary">
 										{log.message}
 									</td>
 								</tr>

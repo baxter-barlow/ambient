@@ -4,6 +4,9 @@ import { deviceApi } from '../api/client'
 import Button from '../components/common/Button'
 import Select from '../components/common/Select'
 import StatusIndicator from '../components/common/StatusIndicator'
+import Tooltip from '../components/common/Tooltip'
+import ErrorMessage from '../components/common/ErrorMessage'
+import { showToast } from '../components/common/Toast'
 import type { SerialPort, PortVerifyResult } from '../types'
 import clsx from 'clsx'
 
@@ -26,8 +29,11 @@ export default function DeviceStatus() {
 		setError(null)
 		try {
 			await deviceApi.connect(cliPort, dataPort)
+			showToast('Connected to radar sensor', 'success')
 		} catch (e) {
-			setError(e instanceof Error ? e.message : 'Connection failed')
+			const msg = e instanceof Error ? e.message : 'Connection failed'
+			setError(msg)
+			showToast(msg, 'error')
 		} finally {
 			setLoading(false)
 		}
@@ -38,8 +44,11 @@ export default function DeviceStatus() {
 		setError(null)
 		try {
 			await deviceApi.disconnect()
+			showToast('Disconnected from sensor', 'info')
 		} catch (e) {
-			setError(e instanceof Error ? e.message : 'Disconnect failed')
+			const msg = e instanceof Error ? e.message : 'Disconnect failed'
+			setError(msg)
+			showToast(msg, 'error')
 		} finally {
 			setLoading(false)
 		}
@@ -49,8 +58,11 @@ export default function DeviceStatus() {
 		setLoading(true)
 		try {
 			await deviceApi.stop()
+			showToast('Sensor stopped', 'warning')
 		} catch (e) {
-			setError(e instanceof Error ? e.message : 'Stop failed')
+			const msg = e instanceof Error ? e.message : 'Stop failed'
+			setError(msg)
+			showToast(msg, 'error')
 		} finally {
 			setLoading(false)
 		}
@@ -63,8 +75,17 @@ export default function DeviceStatus() {
 		try {
 			const result = await deviceApi.verifyPorts(cliPort, dataPort)
 			setVerifyResult(result)
+			if (result.overall === 'pass') {
+				showToast('Ports verified successfully', 'success')
+			} else if (result.overall === 'warning') {
+				showToast('Ports verified with warnings', 'warning')
+			} else {
+				showToast('Port verification failed', 'error')
+			}
 		} catch (e) {
-			setError(e instanceof Error ? e.message : 'Verification failed')
+			const msg = e instanceof Error ? e.message : 'Verification failed'
+			setError(msg)
+			showToast(msg, 'error')
 		} finally {
 			setVerifying(false)
 		}
@@ -82,197 +103,227 @@ export default function DeviceStatus() {
 		]
 
 	return (
-		<div className="space-y-6">
-			<h2 className="text-xl font-semibold">Device Status & Control</h2>
+		<div className="space-y-5">
+			<h2 className="text-xl text-text-primary">Device Status & Control</h2>
 
-			{/* Connection Status */}
-			<div className="bg-gray-800 rounded-lg p-4">
-				<h3 className="text-lg font-medium mb-4">Connection Status</h3>
-				<div className="grid grid-cols-2 gap-4">
-					<div>
-						<span className="text-sm text-gray-400">State</span>
-						<div className="mt-1">
-							<StatusIndicator
-								status={
-									deviceStatus?.state === 'streaming' ? 'success' :
-									deviceStatus?.state === 'error' ? 'error' :
-									deviceStatus?.state === 'connecting' || deviceStatus?.state === 'configuring' ? 'warning' :
-									'neutral'
-								}
-								label={deviceStatus?.state || 'unknown'}
-								pulse={deviceStatus?.state === 'connecting' || deviceStatus?.state === 'configuring'}
-							/>
+			{/* Connection Status Card */}
+			<div className="bg-surface-2 border border-border rounded-card">
+				<div className="px-4 py-3 border-b border-border">
+					<span className="text-base text-text-primary font-medium">Connection Status</span>
+				</div>
+				<div className="p-4">
+					<div className="grid grid-cols-2 gap-4">
+						<div>
+							<span className="text-sm text-text-secondary">State</span>
+							<div className="mt-1">
+								<StatusIndicator
+									status={
+										deviceStatus?.state === 'streaming' ? 'success' :
+										deviceStatus?.state === 'error' ? 'error' :
+										deviceStatus?.state === 'connecting' || deviceStatus?.state === 'configuring' ? 'warning' :
+										'neutral'
+									}
+									label={deviceStatus?.state || 'unknown'}
+									pulse={deviceStatus?.state === 'connecting' || deviceStatus?.state === 'configuring'}
+								/>
+							</div>
+						</div>
+						<div>
+							<span className="text-sm text-text-secondary">Config</span>
+							<p className="text-text-primary font-mono text-sm mt-1">{deviceStatus?.config_name || 'default'}</p>
+						</div>
+						<div>
+							<span className="text-sm text-text-secondary">CLI Port</span>
+							<p className="text-text-primary font-mono text-sm mt-1">{deviceStatus?.cli_port || '-'}</p>
+						</div>
+						<div>
+							<span className="text-sm text-text-secondary">Data Port</span>
+							<p className="text-text-primary font-mono text-sm mt-1">{deviceStatus?.data_port || '-'}</p>
 						</div>
 					</div>
-					<div>
-						<span className="text-sm text-gray-400">Config</span>
-						<p className="text-gray-100">{deviceStatus?.config_name || 'default'}</p>
-					</div>
-					<div>
-						<span className="text-sm text-gray-400">CLI Port</span>
-						<p className="text-gray-100">{deviceStatus?.cli_port || '-'}</p>
-					</div>
-					<div>
-						<span className="text-sm text-gray-400">Data Port</span>
-						<p className="text-gray-100">{deviceStatus?.data_port || '-'}</p>
-					</div>
-				</div>
 
-				{deviceStatus?.error && (
-					<div className="mt-4 p-3 bg-red-900/50 border border-red-700 rounded text-red-200 text-sm">
-						{deviceStatus.error}
-					</div>
-				)}
+					{deviceStatus?.error && (
+						<div className="mt-4 p-3 bg-accent-red/12 border border-accent-red/25 rounded text-accent-red text-sm">
+							{deviceStatus.error}
+						</div>
+					)}
+				</div>
 			</div>
 
-			{/* Sensor Health */}
+			{/* Sensor Health Card */}
 			{isConnected && (
-				<div className="bg-gray-800 rounded-lg p-4">
-					<h3 className="text-lg font-medium mb-4">Sensor Health</h3>
-					<div className="grid grid-cols-4 gap-4">
-						<div>
-							<span className="text-sm text-gray-400">Frame Rate</span>
-							<p className="text-2xl font-mono text-radar-400">
-								{deviceStatus?.frame_rate.toFixed(1)} <span className="text-sm">Hz</span>
-							</p>
-						</div>
-						<div>
-							<span className="text-sm text-gray-400">Frames</span>
-							<p className="text-2xl font-mono text-gray-100">
-								{deviceStatus?.frame_count.toLocaleString()}
-							</p>
-						</div>
-						<div>
-							<span className="text-sm text-gray-400">Dropped</span>
-							<p className="text-2xl font-mono text-gray-100">
-								{deviceStatus?.dropped_frames}
-							</p>
-						</div>
-						<div>
-							<span className="text-sm text-gray-400">Buffer</span>
-							<p className="text-2xl font-mono text-gray-100">
-								{((deviceStatus?.buffer_usage || 0) * 100).toFixed(0)}%
-							</p>
+				<div className="bg-surface-2 border border-border rounded-card">
+					<div className="px-4 py-3 border-b border-border">
+						<span className="text-base text-text-primary font-medium">Sensor Health</span>
+					</div>
+					<div className="p-4">
+						<div className="grid grid-cols-4 gap-4">
+							<div>
+								<span className="text-sm text-text-secondary">Frame Rate</span>
+								<p className="text-metric-md font-mono text-accent-teal mt-1">
+									{deviceStatus?.frame_rate.toFixed(1)} <span className="text-sm text-text-tertiary">Hz</span>
+								</p>
+							</div>
+							<div>
+								<span className="text-sm text-text-secondary">Frames</span>
+								<p className="text-metric-md font-mono text-text-primary mt-1">
+									{deviceStatus?.frame_count.toLocaleString()}
+								</p>
+							</div>
+							<div>
+								<span className="text-sm text-text-secondary">Dropped</span>
+								<p className={clsx(
+									'text-metric-md font-mono mt-1',
+									deviceStatus?.dropped_frames && deviceStatus.dropped_frames > 0
+										? 'text-accent-amber'
+										: 'text-text-primary'
+								)}>
+									{deviceStatus?.dropped_frames}
+								</p>
+							</div>
+							<div>
+								<span className="text-sm text-text-secondary">Buffer</span>
+								<p className="text-metric-md font-mono text-text-primary mt-1">
+									{((deviceStatus?.buffer_usage || 0) * 100).toFixed(0)}%
+								</p>
+							</div>
 						</div>
 					</div>
 				</div>
 			)}
 
-			{/* Port Selection */}
+			{/* Port Selection Card */}
 			{!isConnected && (
-				<div className="bg-gray-800 rounded-lg p-4">
-					<h3 className="text-lg font-medium mb-4">Serial Port Selection</h3>
-					<div className="grid grid-cols-2 gap-4 mb-4">
-						<Select
-							label="CLI Port"
-							options={portOptions}
-							value={cliPort}
-							onChange={e => { setCliPort(e.target.value); setVerifyResult(null) }}
-						/>
-						<Select
-							label="Data Port"
-							options={portOptions}
-							value={dataPort}
-							onChange={e => { setDataPort(e.target.value); setVerifyResult(null) }}
-						/>
+				<div className="bg-surface-2 border border-border rounded-card">
+					<div className="px-4 py-3 border-b border-border">
+						<span className="text-base text-text-primary font-medium">Serial Port Selection</span>
 					</div>
-
-					{/* Verification Results */}
-					{verifyResult && (
-						<div className="mt-4 space-y-2">
-							<div className={clsx(
-								'p-3 rounded border',
-								verifyResult.cli_port.status === 'ok' ? 'bg-green-900/30 border-green-700' :
-								verifyResult.cli_port.status === 'warning' ? 'bg-yellow-900/30 border-yellow-700' :
-								'bg-red-900/30 border-red-700'
-							)}>
-								<div className="flex items-center gap-2">
-									<span className={clsx(
-										'text-lg',
-										verifyResult.cli_port.status === 'ok' ? 'text-green-400' :
-										verifyResult.cli_port.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
-									)}>
-										{verifyResult.cli_port.status === 'ok' ? '✓' : verifyResult.cli_port.status === 'warning' ? '⚠' : '✗'}
-									</span>
-									<span className="font-medium">CLI Port: {verifyResult.cli_port.path}</span>
-								</div>
-								<p className="text-sm text-gray-300 mt-1">{verifyResult.cli_port.details}</p>
-							</div>
-							<div className={clsx(
-								'p-3 rounded border',
-								verifyResult.data_port.status === 'ok' ? 'bg-green-900/30 border-green-700' :
-								verifyResult.data_port.status === 'warning' ? 'bg-yellow-900/30 border-yellow-700' :
-								'bg-red-900/30 border-red-700'
-							)}>
-								<div className="flex items-center gap-2">
-									<span className={clsx(
-										'text-lg',
-										verifyResult.data_port.status === 'ok' ? 'text-green-400' :
-										verifyResult.data_port.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
-									)}>
-										{verifyResult.data_port.status === 'ok' ? '✓' : verifyResult.data_port.status === 'warning' ? '⚠' : '✗'}
-									</span>
-									<span className="font-medium">Data Port: {verifyResult.data_port.path}</span>
-								</div>
-								<p className="text-sm text-gray-300 mt-1">{verifyResult.data_port.details}</p>
-							</div>
+					<div className="p-4">
+						<div className="grid grid-cols-2 gap-4 mb-4">
+							<Select
+								label="CLI Port"
+								options={portOptions}
+								value={cliPort}
+								onChange={e => { setCliPort(e.target.value); setVerifyResult(null) }}
+							/>
+							<Select
+								label="Data Port"
+								options={portOptions}
+								value={dataPort}
+								onChange={e => { setDataPort(e.target.value); setVerifyResult(null) }}
+							/>
 						</div>
-					)}
+
+						{/* Verification Results */}
+						{verifyResult && (
+							<div className="mt-4 space-y-2">
+								<div className={clsx(
+									'p-3 rounded border',
+									verifyResult.cli_port.status === 'ok' ? 'bg-accent-green/12 border-accent-green/25' :
+									verifyResult.cli_port.status === 'warning' ? 'bg-accent-amber/12 border-accent-amber/25' :
+									'bg-accent-red/12 border-accent-red/25'
+								)}>
+									<div className="flex items-center gap-2">
+										<span className={clsx(
+											'text-base font-mono',
+											verifyResult.cli_port.status === 'ok' ? 'text-accent-green' :
+											verifyResult.cli_port.status === 'warning' ? 'text-accent-amber' : 'text-accent-red'
+										)}>
+											{verifyResult.cli_port.status === 'ok' ? '+' : verifyResult.cli_port.status === 'warning' ? '!' : 'x'}
+										</span>
+										<span className="font-medium text-text-primary">CLI Port: <span className="font-mono">{verifyResult.cli_port.path}</span></span>
+									</div>
+									<p className="text-sm text-text-secondary mt-1">{verifyResult.cli_port.details}</p>
+								</div>
+								<div className={clsx(
+									'p-3 rounded border',
+									verifyResult.data_port.status === 'ok' ? 'bg-accent-green/12 border-accent-green/25' :
+									verifyResult.data_port.status === 'warning' ? 'bg-accent-amber/12 border-accent-amber/25' :
+									'bg-accent-red/12 border-accent-red/25'
+								)}>
+									<div className="flex items-center gap-2">
+										<span className={clsx(
+											'text-base font-mono',
+											verifyResult.data_port.status === 'ok' ? 'text-accent-green' :
+											verifyResult.data_port.status === 'warning' ? 'text-accent-amber' : 'text-accent-red'
+										)}>
+											{verifyResult.data_port.status === 'ok' ? '+' : verifyResult.data_port.status === 'warning' ? '!' : 'x'}
+										</span>
+										<span className="font-medium text-text-primary">Data Port: <span className="font-mono">{verifyResult.data_port.path}</span></span>
+									</div>
+									<p className="text-sm text-text-secondary mt-1">{verifyResult.data_port.details}</p>
+								</div>
+							</div>
+						)}
+					</div>
 				</div>
 			)}
 
 			{/* Error display */}
 			{error && (
-				<div className="p-3 bg-red-900/50 border border-red-700 rounded text-red-200 text-sm">
-					{error}
-				</div>
+				<ErrorMessage
+					message={error}
+					onDismiss={() => setError(null)}
+				/>
 			)}
 
 			{/* Controls */}
-			<div className="flex gap-4">
+			<div className="flex gap-3">
 				{!isConnected ? (
 					<>
-						<Button
-							variant="secondary"
-							onClick={handleVerify}
-							disabled={verifying || loading}
+						<Tooltip content="Check if ports are valid TI radar devices" position="bottom">
+							<Button
+								variant="secondary"
+								onClick={handleVerify}
+								disabled={verifying || loading}
+							>
+								{verifying ? 'Verifying...' : 'Verify Ports'}
+							</Button>
+						</Tooltip>
+						<Tooltip
+							content={!canConnect ? 'Verify ports first before connecting' : 'Connect to radar sensor'}
+							position="bottom"
 						>
-							{verifying ? 'Verifying...' : 'Verify Ports'}
-						</Button>
-						<Button
-							onClick={handleConnect}
-							disabled={loading || !canConnect || deviceStatus?.state === 'connecting'}
-							title={!canConnect ? 'Verify ports first' : undefined}
-						>
-							{loading ? 'Connecting...' : 'Connect'}
-						</Button>
+							<Button
+								onClick={handleConnect}
+								disabled={loading || !canConnect || deviceStatus?.state === 'connecting'}
+							>
+								{loading ? 'Connecting...' : 'Connect'}
+							</Button>
+						</Tooltip>
 					</>
 				) : (
-					<Button
-						variant="secondary"
-						onClick={handleDisconnect}
-						disabled={loading}
-					>
-						Disconnect
-					</Button>
+					<Tooltip content="Gracefully disconnect from sensor" position="bottom">
+						<Button
+							variant="secondary"
+							onClick={handleDisconnect}
+							disabled={loading}
+						>
+							Disconnect
+						</Button>
+					</Tooltip>
 				)}
 
 				{isConnected && (
-					<Button
-						variant="danger"
-						onClick={handleStop}
-						disabled={loading}
-					>
-						Emergency Stop
-					</Button>
+					<Tooltip content="Immediately stop sensor streaming" position="bottom">
+						<Button
+							variant="danger"
+							onClick={handleStop}
+							disabled={loading}
+						>
+							Emergency Stop
+						</Button>
+					</Tooltip>
 				)}
 
-				<Button
-					variant="secondary"
-					onClick={() => deviceApi.getPorts().then(setPorts)}
-				>
-					Refresh Ports
-				</Button>
+				<Tooltip content="Scan for available serial ports" position="bottom">
+					<Button
+						variant="secondary"
+						onClick={() => deviceApi.getPorts().then(setPorts)}
+					>
+						Refresh Ports
+					</Button>
+				</Tooltip>
 			</div>
 		</div>
 	)

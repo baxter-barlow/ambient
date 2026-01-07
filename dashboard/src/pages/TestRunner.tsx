@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { testsApi } from '../api/client'
 import { testsWs } from '../api/websocket'
 import Button from '../components/common/Button'
+import clsx from 'clsx'
 
 interface TestModule {
 	name: string
@@ -69,29 +70,31 @@ export default function TestRunner() {
 	}
 
 	return (
-		<div className="space-y-6">
-			<h2 className="text-xl font-semibold">Test Runner</h2>
+		<div className="space-y-5">
+			<h2 className="text-xl text-text-primary">Test Runner</h2>
 
-			<div className="grid grid-cols-3 gap-6">
+			<div className="grid grid-cols-3 gap-4">
 				{/* Module Selection */}
-				<div className="bg-gray-800 rounded-lg p-4">
-					<h3 className="text-lg font-medium mb-4">Test Modules</h3>
-					<div className="space-y-2">
+				<div className="bg-surface-2 border border-border rounded-card">
+					<div className="px-4 py-3 border-b border-border">
+						<span className="text-base text-text-primary font-medium">Test Modules</span>
+					</div>
+					<div className="p-3 space-y-1">
 						{modules.map(mod => (
 							<label
 								key={mod.name}
-								className="flex items-center gap-3 p-2 rounded hover:bg-gray-700 cursor-pointer"
+								className="flex items-center gap-3 p-2 rounded hover:bg-surface-3 cursor-pointer transition-colors"
 							>
 								<input
 									type="checkbox"
 									checked={selected.includes(mod.name)}
 									onChange={() => toggleModule(mod.name)}
-									className="w-4 h-4"
+									className="w-4 h-4 accent-accent-teal"
 								/>
 								<div>
-									<span className="font-medium">{mod.name}</span>
+									<span className="font-medium text-text-primary">{mod.name}</span>
 									{mod.hardware_required && (
-										<span className="ml-2 text-xs bg-yellow-600 text-yellow-100 px-1.5 py-0.5 rounded">
+										<span className="ml-2 text-micro bg-accent-amber/15 text-accent-amber px-1.5 py-0.5 rounded border border-accent-amber/25 uppercase">
 											hardware
 										</span>
 									)}
@@ -100,19 +103,19 @@ export default function TestRunner() {
 						))}
 					</div>
 
-					<div className="mt-4 pt-4 border-t border-gray-700">
+					<div className="mx-3 pt-3 pb-3 border-t border-border">
 						<label className="flex items-center gap-3 cursor-pointer">
 							<input
 								type="checkbox"
 								checked={includeHardware}
 								onChange={e => setIncludeHardware(e.target.checked)}
-								className="w-4 h-4"
+								className="w-4 h-4 accent-accent-teal"
 							/>
-							<span>Include hardware tests</span>
+							<span className="text-text-secondary">Include hardware tests</span>
 						</label>
 					</div>
 
-					<div className="mt-4">
+					<div className="p-3 pt-0">
 						<Button
 							onClick={handleRun}
 							disabled={running}
@@ -124,30 +127,34 @@ export default function TestRunner() {
 				</div>
 
 				{/* Output */}
-				<div className="col-span-2 bg-gray-800 rounded-lg p-4">
-					<h3 className="text-lg font-medium mb-4">Output</h3>
-					<div
-						ref={outputRef}
-						className="h-96 overflow-auto bg-gray-900 rounded p-3 font-mono text-sm"
-					>
-						{output.length === 0 ? (
-							<p className="text-gray-500">Run tests to see output.</p>
-						) : (
-							output.map((line, i) => (
-								<div
-									key={i}
-									className={
-										line.includes('PASSED') ? 'text-green-400' :
-										line.includes('FAILED') ? 'text-red-400' :
-										line.includes('ERROR') ? 'text-red-400' :
-										line.includes('SKIPPED') ? 'text-yellow-400' :
-										'text-gray-300'
-									}
-								>
-									{line || '\u00A0'}
-								</div>
-							))
-						)}
+				<div className="col-span-2 bg-surface-2 border border-border rounded-card">
+					<div className="px-4 py-3 border-b border-border">
+						<span className="text-base text-text-primary font-medium">Output</span>
+					</div>
+					<div className="p-4">
+						<div
+							ref={outputRef}
+							className="h-96 overflow-auto bg-surface-0 border border-border rounded p-3 font-mono text-sm"
+						>
+							{output.length === 0 ? (
+								<p className="text-text-tertiary">Run tests to see output.</p>
+							) : (
+								output.map((line, i) => (
+									<div
+										key={i}
+										className={clsx(
+											line.includes('PASSED') ? 'text-accent-green' :
+											line.includes('FAILED') ? 'text-accent-red' :
+											line.includes('ERROR') ? 'text-accent-red' :
+											line.includes('SKIPPED') ? 'text-accent-amber' :
+											'text-text-secondary'
+										)}
+									>
+										{line || '\u00A0'}
+									</div>
+								))
+							)}
+						</div>
 					</div>
 				</div>
 			</div>

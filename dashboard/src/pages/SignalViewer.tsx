@@ -4,6 +4,7 @@ import RangeProfile from '../components/charts/RangeProfile'
 import PhaseSignal from '../components/charts/PhaseSignal'
 import VitalsChart from '../components/charts/VitalsChart'
 import RangeDoppler from '../components/charts/RangeDoppler'
+import WaveformChart from '../components/charts/WaveformChart'
 import Button from '../components/common/Button'
 import clsx from 'clsx'
 
@@ -50,90 +51,132 @@ export default function SignalViewer() {
 	const isStreaming = deviceStatus?.state === 'streaming'
 
 	return (
-		<div className="space-y-4">
+		<div className="space-y-5">
+			{/* Page header */}
 			<div className="flex items-center justify-between">
-				<h2 className="text-xl font-semibold">Real-Time Signal Viewer</h2>
+				<h2 className="text-xl text-text-primary">Real-Time Signal Viewer</h2>
 				<div className="flex items-center gap-4">
 					{/* Time window selector */}
 					<div className="flex items-center gap-2">
-						<span className="text-sm text-gray-400">Window:</span>
-						{TIME_WINDOWS.map(tw => (
-							<button
-								key={tw.value}
-								onClick={() => setTimeWindow(tw.value)}
-								className={clsx(
-									'px-2 py-1 text-sm rounded',
-									timeWindow === tw.value
-										? 'bg-radar-600 text-white'
-										: 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-								)}
-							>
-								{tw.label}
-							</button>
-						))}
+						<span className="text-sm text-text-secondary">Window:</span>
+						<div className="flex items-center gap-1.5">
+							{TIME_WINDOWS.map(tw => (
+								<button
+									key={tw.value}
+									onClick={() => setTimeWindow(tw.value)}
+									className={clsx(
+										'px-2.5 py-1 text-xs rounded transition-colors duration-150',
+										timeWindow === tw.value
+											? 'bg-accent-teal text-text-inverse font-semibold'
+											: 'bg-surface-3 text-text-secondary hover:bg-surface-4'
+									)}
+								>
+									{tw.label}
+								</button>
+							))}
+						</div>
 					</div>
 
-					{/* Pause/Resume */}
+					{/* Pause/Resume toggle */}
 					<Button
-						variant={isPaused ? 'primary' : 'secondary'}
+						variant="toggle"
+						active={!isPaused}
 						size="sm"
 						onClick={togglePause}
+						className="flex items-center gap-2"
 					>
-						{isPaused ? 'Resume' : 'Pause'}
+						<span className={clsx(
+							'w-1.5 h-1.5 rounded-full',
+							isPaused ? 'bg-text-tertiary' : 'bg-accent-teal'
+						)} />
+						{isPaused ? 'Paused' : 'Live'}
 					</Button>
 				</div>
 			</div>
 
+			{/* Warning banner when not streaming */}
 			{!isStreaming && (
-				<div className="bg-yellow-900/30 border border-yellow-700 rounded p-4 text-yellow-200 text-sm">
+				<div className="p-3 rounded bg-accent-amber/12 border border-accent-amber/25 text-accent-amber text-sm flex items-center gap-2.5">
+					<span className="text-base">!</span>
 					Device is not streaming. Connect to the sensor to view real-time data.
 				</div>
 			)}
 
-			{/* Vitals Display */}
+			{/* Vitals Display Card */}
 			{vitals && (
-				<div className="bg-gray-800 rounded-lg p-4">
-					<div className="grid grid-cols-4 gap-6">
-						<div>
-							<span className="text-sm text-gray-400">Heart Rate</span>
-							<p className="text-3xl font-mono text-red-400">
-								{vitals.heart_rate_bpm?.toFixed(0) ?? '--'}
-								<span className="text-lg ml-1">BPM</span>
-							</p>
-							<div className="mt-1 h-1 bg-gray-700 rounded overflow-hidden">
-								<div
-									className="h-full bg-red-500 transition-all"
-									style={{ width: `${vitals.heart_rate_confidence * 100}%` }}
-								/>
+				<div className="bg-surface-2 border border-border rounded-card">
+					<div className="flex items-center justify-between px-4 py-3 border-b border-border">
+						<span className="text-base text-text-primary font-medium">Vital Signs</span>
+						<span className={clsx(
+							'px-2 py-0.5 rounded text-micro font-semibold uppercase tracking-wide',
+							vitals.source === 'firmware'
+								? 'bg-accent-green/15 text-accent-green border border-accent-green/25'
+								: 'bg-accent-amber/15 text-accent-amber border border-accent-amber/25'
+						)}>
+							{vitals.source === 'firmware' ? 'Firmware' : 'Estimated'}
+						</span>
+					</div>
+					<div className="p-4">
+						<div className="grid grid-cols-4 gap-6">
+							{/* Heart Rate */}
+							<div>
+								<span className="text-sm text-text-secondary">Heart Rate</span>
+								<p className="text-metric-lg font-mono text-accent-red mt-1">
+									{vitals.heart_rate_bpm?.toFixed(0) ?? '--'}
+									<span className="text-sm text-text-tertiary ml-1">BPM</span>
+								</p>
+								<div className="mt-2 h-1 bg-surface-3 rounded overflow-hidden">
+									<div
+										className="h-full bg-accent-red transition-all duration-300"
+										style={{ width: `${vitals.heart_rate_confidence * 100}%` }}
+									/>
+								</div>
+								<span className="text-xs font-mono text-text-tertiary">
+									{(vitals.heart_rate_confidence * 100).toFixed(0)}% confidence
+								</span>
 							</div>
-						</div>
-						<div>
-							<span className="text-sm text-gray-400">Respiratory Rate</span>
-							<p className="text-3xl font-mono text-blue-400">
-								{vitals.respiratory_rate_bpm?.toFixed(0) ?? '--'}
-								<span className="text-lg ml-1">BPM</span>
-							</p>
-							<div className="mt-1 h-1 bg-gray-700 rounded overflow-hidden">
-								<div
-									className="h-full bg-blue-500 transition-all"
-									style={{ width: `${vitals.respiratory_rate_confidence * 100}%` }}
-								/>
+
+							{/* Respiratory Rate */}
+							<div>
+								<span className="text-sm text-text-secondary">Respiratory Rate</span>
+								<p className="text-metric-lg font-mono text-accent-blue mt-1">
+									{vitals.respiratory_rate_bpm?.toFixed(0) ?? '--'}
+									<span className="text-sm text-text-tertiary ml-1">BPM</span>
+								</p>
+								<div className="mt-2 h-1 bg-surface-3 rounded overflow-hidden">
+									<div
+										className="h-full bg-accent-blue transition-all duration-300"
+										style={{ width: `${vitals.respiratory_rate_confidence * 100}%` }}
+									/>
+								</div>
+								<span className="text-xs font-mono text-text-tertiary">
+									{(vitals.respiratory_rate_confidence * 100).toFixed(0)}% confidence
+								</span>
 							</div>
-						</div>
-						<div>
-							<span className="text-sm text-gray-400">Signal Quality</span>
-							<p className="text-3xl font-mono text-radar-400">
-								{(vitals.signal_quality * 100).toFixed(0)}%
-							</p>
-						</div>
-						<div>
-							<span className="text-sm text-gray-400">Motion</span>
-							<p className={clsx(
-								'text-3xl font-mono',
-								vitals.motion_detected ? 'text-yellow-400' : 'text-gray-400'
-							)}>
-								{vitals.motion_detected ? 'Detected' : 'None'}
-							</p>
+
+							{/* Signal Quality */}
+							<div>
+								<span className="text-sm text-text-secondary">Signal Quality</span>
+								<p className="text-metric-lg font-mono text-accent-teal mt-1">
+									{(vitals.signal_quality * 100).toFixed(0)}%
+								</p>
+								{vitals.unwrapped_phase !== undefined && (
+									<span className="text-xs font-mono text-text-tertiary mt-2 block">
+										Phase: {vitals.unwrapped_phase.toFixed(2)} rad
+									</span>
+								)}
+							</div>
+
+							{/* Motion Detection */}
+							<div>
+								<span className="text-sm text-text-secondary">Motion</span>
+								<p className={clsx(
+									'text-metric-lg font-mono mt-1',
+									vitals.motion_detected ? 'text-accent-amber' : 'text-text-tertiary'
+								)}>
+									{vitals.motion_detected ? 'Detected' : 'None'}
+								</p>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -165,6 +208,18 @@ export default function SignalViewer() {
 					height={280}
 				/>
 			</div>
+
+			{/* Firmware Waveforms (only shown when using vital signs firmware) */}
+			{vitals?.source === 'firmware' && (
+				<div className="mt-4">
+					<WaveformChart
+						breathingWaveform={vitals.breathing_waveform}
+						heartWaveform={vitals.heart_waveform}
+						width={1180}
+						height={250}
+					/>
+				</div>
+			)}
 		</div>
 	)
 }

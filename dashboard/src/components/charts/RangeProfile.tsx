@@ -1,17 +1,25 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
+import ChartContainer from '../common/ChartContainer'
 
 interface Props {
 	data: number[]
 	width?: number
 	height?: number
+	isLoading?: boolean
 }
 
-export default function RangeProfile({ data, width = 600, height = 300 }: Props) {
+interface CursorData {
+	bin: number
+	value: number
+}
+
+export default function RangeProfile({ data, width = 600, height = 300, isLoading = false }: Props) {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const chartRef = useRef<uPlot | null>(null)
 	const [yRange, setYRange] = useState<[number, number]>([0, 1])
+	const [cursorData, setCursorData] = useState<CursorData | null>(null)
 
 	// Stabilize Y-axis with smoothing
 	useEffect(() => {
@@ -29,8 +37,21 @@ export default function RangeProfile({ data, width = 600, height = 300 }: Props)
 		if (data.length === 0) return null
 		const max = Math.max(...data)
 		const mean = data.reduce((a, b) => a + b, 0) / data.length
-		return { max: max.toFixed(1), mean: mean.toFixed(1) }
+		return { max: max.toFixed(1), mean: mean.toFixed(1), bins: data.length }
 	}, [data])
+
+	const handleCursor = useCallback((u: uPlot) => {
+		const idx = u.cursor.idx
+		if (idx != null && u.data[0] && u.data[1]) {
+			const bin = u.data[0][idx]
+			const value = u.data[1][idx]
+			if (bin != null && value != null) {
+				setCursorData({ bin, value })
+			}
+		} else {
+			setCursorData(null)
+		}
+	}, [])
 
 	useEffect(() => {
 		if (!containerRef.current) return
@@ -38,35 +59,49 @@ export default function RangeProfile({ data, width = 600, height = 300 }: Props)
 		const opts: uPlot.Options = {
 			width,
 			height,
-			title: 'Range Profile',
 			scales: {
 				x: { time: false },
 				y: { auto: false, range: () => yRange },
 			},
+			cursor: {
+				show: true,
+				x: true,
+				y: true,
+				points: {
+					show: true,
+					size: 8,
+					stroke: '#00a896',
+					fill: '#1e2024',
+					width: 2,
+				},
+			},
+			hooks: {
+				setCursor: [handleCursor],
+			},
 			axes: [
 				{
-					stroke: '#9ca3af',
-					grid: { stroke: '#374151', width: 1 },
-					ticks: { stroke: '#4b5563' },
+					stroke: '#6b7280',
+					grid: { stroke: '#2a2d32', width: 1 },
+					ticks: { stroke: '#2a2d32' },
 					label: 'Range Bin',
-					labelSize: 14,
-					font: '12px sans-serif',
+					labelSize: 12,
+					font: '9px JetBrains Mono, monospace',
 				},
 				{
-					stroke: '#9ca3af',
-					grid: { stroke: '#374151', width: 1 },
-					ticks: { stroke: '#4b5563' },
+					stroke: '#6b7280',
+					grid: { stroke: '#2a2d32', width: 1 },
+					ticks: { stroke: '#2a2d32' },
 					label: 'Magnitude (dB)',
-					labelSize: 14,
-					font: '12px sans-serif',
+					labelSize: 12,
+					font: '9px JetBrains Mono, monospace',
 				},
 			],
 			series: [
 				{},
 				{
-					stroke: '#22c55e',
-					width: 2,
-					fill: 'rgba(34, 197, 94, 0.15)',
+					stroke: '#00a896',
+					width: 1.5,
+					fill: 'rgba(0, 168, 150, 0.15)',
 				},
 			],
 		}
@@ -77,7 +112,7 @@ export default function RangeProfile({ data, width = 600, height = 300 }: Props)
 			chartRef.current?.destroy()
 			chartRef.current = null
 		}
-	}, [width, height])
+	}, [width, height, handleCursor])
 
 	// Update Y range when it changes
 	useEffect(() => {
@@ -93,17 +128,30 @@ export default function RangeProfile({ data, width = 600, height = 300 }: Props)
 		chartRef.current.setData([xData, data])
 	}, [data])
 
+	const cursorReadout = cursorData ? (
+		<span className="text-micro font-mono text-accent-teal">
+			Bin {cursorData.bin}: {cursorData.value.toFixed(1)} dB
+		</span>
+	) : null
+
 	return (
-		<div className="bg-gray-800 rounded-lg p-3">
-			<div className="flex justify-between items-center mb-2">
-				<span className="text-sm text-gray-400">Range Profile</span>
-				{stats && (
-					<span className="text-xs text-gray-500">
-						Max: {stats.max} | Mean: {stats.mean}
-					</span>
-				)}
-			</div>
+		<ChartContainer
+			title="Range Profile"
+			subtitle={
+				<>
+					{cursorReadout}
+					{cursorReadout && stats && <span className="mx-2 text-border">|</span>}
+					{stats && <span>{stats.bins} bins | max: {stats.max} dB | mean: {stats.mean} dB</span>}
+				</>
+			}
+			isLoading={isLoading}
+			isEmpty={data.length === 0 && !isLoading}
+			emptyMessage="Waiting for range data..."
+			loadingMessage="Loading range profile..."
+			width={width}
+			height={height}
+		>
 			<div ref={containerRef} />
-		</div>
+		</ChartContainer>
 	)
 }

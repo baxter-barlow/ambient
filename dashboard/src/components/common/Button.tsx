@@ -2,14 +2,16 @@ import clsx from 'clsx'
 import { ButtonHTMLAttributes, ReactNode } from 'react'
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
-	variant?: 'primary' | 'secondary' | 'danger'
+	variant?: 'primary' | 'secondary' | 'danger' | 'toggle'
 	size?: 'sm' | 'md' | 'lg'
+	active?: boolean
 	children: ReactNode
 }
 
 export default function Button({
 	variant = 'primary',
 	size = 'md',
+	active = false,
 	className,
 	children,
 	disabled,
@@ -18,18 +20,27 @@ export default function Button({
 	return (
 		<button
 			className={clsx(
-				'font-medium rounded transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800',
+				'font-semibold rounded transition-colors duration-150',
+				// Variant styles
 				{
-					'bg-radar-600 hover:bg-radar-700 text-white focus:ring-radar-500': variant === 'primary',
-					'bg-gray-600 hover:bg-gray-500 text-white focus:ring-gray-400': variant === 'secondary',
-					'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500': variant === 'danger',
+					// Primary - teal accent
+					'bg-accent-teal hover:bg-accent-teal-hover text-text-inverse': variant === 'primary' && !disabled,
+					// Secondary - subtle
+					'bg-surface-3 hover:bg-surface-4 border border-border text-text-secondary hover:text-text-primary': variant === 'secondary',
+					// Danger - red
+					'bg-accent-red hover:bg-red-600 text-white': variant === 'danger' && !disabled,
+					// Toggle - state-based
+					'bg-accent-teal/15 border border-accent-teal text-accent-teal': variant === 'toggle' && active,
+					'bg-surface-3 border border-border text-text-secondary hover:bg-surface-4': variant === 'toggle' && !active,
 				},
+				// Size styles
 				{
-					'px-2 py-1 text-xs': size === 'sm',
+					'px-3.5 py-1.5 text-xs': size === 'sm',
 					'px-4 py-2 text-sm': size === 'md',
-					'px-6 py-3 text-base': size === 'lg',
+					'px-5 py-2.5 text-base': size === 'lg',
 				},
-				disabled && 'opacity-50 cursor-not-allowed',
+				// Disabled state
+				disabled && 'bg-surface-3 text-text-tertiary cursor-not-allowed border-none',
 				className
 			)}
 			disabled={disabled}

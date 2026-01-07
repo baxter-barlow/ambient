@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { configApi } from '../api/client'
 import Button from '../components/common/Button'
 import type { ConfigProfile } from '../types'
+import clsx from 'clsx'
 
 export default function ConfigManager() {
 	const [profiles, setProfiles] = useState<ConfigProfile[]>([])
@@ -91,30 +92,38 @@ export default function ConfigManager() {
 	}
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-5">
 			<div className="flex items-center justify-between">
-				<h2 className="text-xl font-semibold">Configuration Manager</h2>
+				<h2 className="text-xl text-text-primary">Configuration Manager</h2>
 				<Button onClick={startNew}>New Profile</Button>
 			</div>
 
-			<div className="grid grid-cols-3 gap-6">
+			<div className="grid grid-cols-3 gap-4">
 				{/* Profile List */}
-				<div className="bg-gray-800 rounded-lg p-4">
-					<h3 className="text-lg font-medium mb-4">Profiles</h3>
-					<div className="space-y-2">
+				<div className="bg-surface-2 border border-border rounded-card">
+					<div className="px-4 py-3 border-b border-border">
+						<span className="text-base text-text-primary font-medium">Profiles</span>
+					</div>
+					<div className="p-3 space-y-1">
 						{profiles.map(profile => (
 							<div
 								key={profile.name}
 								onClick={() => setSelected(profile)}
-								className={`p-3 rounded cursor-pointer ${
+								className={clsx(
+									'p-3 rounded cursor-pointer transition-colors duration-150',
 									selected?.name === profile.name
-										? 'bg-radar-600'
-										: 'bg-gray-700 hover:bg-gray-600'
-								}`}
+										? 'bg-accent-teal text-text-inverse'
+										: 'bg-surface-3 hover:bg-surface-4 text-text-primary'
+								)}
 							>
 								<p className="font-medium">{profile.name}</p>
 								{profile.description && (
-									<p className="text-sm text-gray-400 truncate">{profile.description}</p>
+									<p className={clsx(
+										'text-sm truncate',
+										selected?.name === profile.name ? 'text-text-inverse/70' : 'text-text-secondary'
+									)}>
+										{profile.description}
+									</p>
 								)}
 							</div>
 						))}
@@ -122,40 +131,42 @@ export default function ConfigManager() {
 				</div>
 
 				{/* Profile Details / Editor */}
-				<div className="col-span-2 bg-gray-800 rounded-lg p-4">
+				<div className="col-span-2 bg-surface-2 border border-border rounded-card">
 					{editing && editForm ? (
 						<>
-							<h3 className="text-lg font-medium mb-4">
-								{editForm.name ? `Edit: ${editForm.name}` : 'New Profile'}
-							</h3>
-							<div className="space-y-4">
+							<div className="px-4 py-3 border-b border-border">
+								<span className="text-base text-text-primary font-medium">
+									{editForm.name ? `Edit: ${editForm.name}` : 'New Profile'}
+								</span>
+							</div>
+							<div className="p-4 space-y-4">
 								<div className="grid grid-cols-2 gap-4">
 									<div>
-										<label className="block text-sm text-gray-400 mb-1">Name</label>
+										<label className="block text-sm text-text-secondary mb-1">Name</label>
 										<input
 											type="text"
 											value={editForm.name}
 											onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-											className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2"
+											className="w-full bg-surface-3 border border-border rounded px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-teal"
 											disabled={profiles.some(p => p.name === editForm.name)}
 										/>
 									</div>
 									<div>
-										<label className="block text-sm text-gray-400 mb-1">Description</label>
+										<label className="block text-sm text-text-secondary mb-1">Description</label>
 										<input
 											type="text"
 											value={editForm.description}
 											onChange={e => setEditForm({ ...editForm, description: e.target.value })}
-											className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2"
+											className="w-full bg-surface-3 border border-border rounded px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-teal"
 										/>
 									</div>
 								</div>
 
-								<h4 className="font-medium text-gray-300 mt-4">Chirp Parameters</h4>
+								<h4 className="font-medium text-text-secondary mt-4">Chirp Parameters</h4>
 								<div className="grid grid-cols-3 gap-4">
 									{Object.entries(editForm.chirp).map(([key, value]) => (
 										<div key={key}>
-											<label className="block text-sm text-gray-400 mb-1">{key}</label>
+											<label className="block text-sm text-text-tertiary mb-1">{key}</label>
 											<input
 												type="number"
 												value={value}
@@ -163,17 +174,17 @@ export default function ConfigManager() {
 													...editForm,
 													chirp: { ...editForm.chirp, [key]: parseFloat(e.target.value) }
 												})}
-												className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2"
+												className="w-full bg-surface-3 border border-border rounded px-3 py-2 font-mono text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-teal"
 											/>
 										</div>
 									))}
 								</div>
 
-								<h4 className="font-medium text-gray-300 mt-4">Frame Parameters</h4>
+								<h4 className="font-medium text-text-secondary mt-4">Frame Parameters</h4>
 								<div className="grid grid-cols-3 gap-4">
 									{Object.entries(editForm.frame).map(([key, value]) => (
 										<div key={key}>
-											<label className="block text-sm text-gray-400 mb-1">{key}</label>
+											<label className="block text-sm text-text-tertiary mb-1">{key}</label>
 											<input
 												type="number"
 												value={value}
@@ -181,13 +192,13 @@ export default function ConfigManager() {
 													...editForm,
 													frame: { ...editForm.frame, [key]: parseFloat(e.target.value) }
 												})}
-												className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2"
+												className="w-full bg-surface-3 border border-border rounded px-3 py-2 font-mono text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-teal"
 											/>
 										</div>
 									))}
 								</div>
 
-								<div className="flex gap-4 mt-6">
+								<div className="flex gap-3 mt-6">
 									<Button onClick={handleSave}>Save</Button>
 									<Button variant="secondary" onClick={() => setEditing(false)}>Cancel</Button>
 								</div>
@@ -195,8 +206,8 @@ export default function ConfigManager() {
 						</>
 					) : selected ? (
 						<>
-							<div className="flex items-center justify-between mb-4">
-								<h3 className="text-lg font-medium">{selected.name}</h3>
+							<div className="flex items-center justify-between px-4 py-3 border-b border-border">
+								<span className="text-base text-text-primary font-medium">{selected.name}</span>
 								<div className="flex gap-2">
 									<Button size="sm" onClick={() => handleFlash(selected.name)}>Flash to Device</Button>
 									<Button size="sm" variant="secondary" onClick={() => startEdit(selected)}>Edit</Button>
@@ -205,36 +216,40 @@ export default function ConfigManager() {
 									)}
 								</div>
 							</div>
-							{selected.description && (
-								<p className="text-gray-400 mb-4">{selected.description}</p>
-							)}
-							<div className="grid grid-cols-2 gap-6">
-								<div>
-									<h4 className="font-medium text-gray-300 mb-2">Chirp</h4>
-									<dl className="space-y-1 text-sm">
-										{Object.entries(selected.chirp).map(([k, v]) => (
-											<div key={k} className="flex justify-between">
-												<dt className="text-gray-400">{k}</dt>
-												<dd className="font-mono">{v}</dd>
-											</div>
-										))}
-									</dl>
-								</div>
-								<div>
-									<h4 className="font-medium text-gray-300 mb-2">Frame</h4>
-									<dl className="space-y-1 text-sm">
-										{Object.entries(selected.frame).map(([k, v]) => (
-											<div key={k} className="flex justify-between">
-												<dt className="text-gray-400">{k}</dt>
-												<dd className="font-mono">{v}</dd>
-											</div>
-										))}
-									</dl>
+							<div className="p-4">
+								{selected.description && (
+									<p className="text-text-secondary mb-4">{selected.description}</p>
+								)}
+								<div className="grid grid-cols-2 gap-6">
+									<div>
+										<h4 className="font-medium text-text-secondary mb-2">Chirp</h4>
+										<dl className="space-y-1 text-sm">
+											{Object.entries(selected.chirp).map(([k, v]) => (
+												<div key={k} className="flex justify-between">
+													<dt className="text-text-tertiary">{k}</dt>
+													<dd className="font-mono text-text-primary">{v}</dd>
+												</div>
+											))}
+										</dl>
+									</div>
+									<div>
+										<h4 className="font-medium text-text-secondary mb-2">Frame</h4>
+										<dl className="space-y-1 text-sm">
+											{Object.entries(selected.frame).map(([k, v]) => (
+												<div key={k} className="flex justify-between">
+													<dt className="text-text-tertiary">{k}</dt>
+													<dd className="font-mono text-text-primary">{v}</dd>
+												</div>
+											))}
+										</dl>
+									</div>
 								</div>
 							</div>
 						</>
 					) : (
-						<p className="text-gray-400">Select a profile to view details.</p>
+						<div className="p-4">
+							<p className="text-text-tertiary">Select a profile to view details.</p>
+						</div>
 					)}
 				</div>
 			</div>
