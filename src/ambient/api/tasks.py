@@ -6,6 +6,8 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from ambient.vitals.extractor import VitalSigns as VitalSignsData
+
 from .schemas import DetectedPoint, VitalSigns
 
 if TYPE_CHECKING:
@@ -56,14 +58,22 @@ def frame_to_dict(frame, processed=None) -> dict:
 
 def vitals_to_dict(vitals) -> dict:
 	"""Convert VitalSigns to serializable dict."""
-	return VitalSigns(
+	result = VitalSigns(
 		heart_rate_bpm=vitals.heart_rate_bpm,
 		heart_rate_confidence=vitals.heart_rate_confidence,
 		respiratory_rate_bpm=vitals.respiratory_rate_bpm,
 		respiratory_rate_confidence=vitals.respiratory_rate_confidence,
 		signal_quality=vitals.signal_quality,
 		motion_detected=vitals.motion_detected,
-	).model_dump()
+		source=getattr(vitals, 'source', 'estimated'),
+		unwrapped_phase=getattr(vitals, 'unwrapped_phase', None),
+	)
+	# Add waveforms if available
+	if vitals.respiratory_waveform is not None:
+		result.breathing_waveform = vitals.respiratory_waveform.tolist()
+	if vitals.heart_rate_waveform is not None:
+		result.heart_waveform = vitals.heart_rate_waveform.tolist()
+	return result.model_dump()
 
 
 async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
@@ -94,7 +104,12 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 
 				# Process frame
 				processed = pipeline.process(frame)
-				vitals = extractor.process_frame(processed)
+
+				# Use firmware vital signs if available, otherwise fall back to estimation
+				if frame.vital_signs is not None:
+					vitals = VitalSignsData.from_firmware(frame.vital_signs, frame.timestamp)
+				else:
+					vitals = extractor.process_frame(processed)
 
 				# Write to recording if active
 				if state.recording.is_recording:

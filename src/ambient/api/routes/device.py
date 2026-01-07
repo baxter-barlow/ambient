@@ -141,6 +141,7 @@ async def signal_stats():
 			"frames_processed": device._frame_count,
 		},
 		"vitals": None,
+		"firmware": None,
 	}
 
 	# Get info about last processed data
@@ -151,4 +152,26 @@ async def signal_stats():
 		result["buffers"]["phase_buffer_length"] = len(device.extractor._phase_buffer)
 		result["buffers"]["buffer_fullness"] = device.extractor.buffer_fullness
 
+	# Get firmware info if connected
+	if device.sensor and device.sensor.is_connected:
+		try:
+			result["firmware"] = device.sensor.detect_firmware()
+		except Exception as e:
+			result["firmware"] = {"type": "unknown", "error": str(e)}
+
 	return result
+
+
+@router.get("/firmware")
+async def get_firmware_info():
+	"""Get detected firmware information."""
+	state = get_app_state()
+	device = state.device
+
+	if not device.sensor or not device.sensor.is_connected:
+		raise HTTPException(status_code=400, detail="Device not connected")
+
+	try:
+		return device.sensor.detect_firmware()
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=f"Failed to detect firmware: {e}")

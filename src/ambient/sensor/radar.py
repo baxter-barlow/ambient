@@ -238,6 +238,41 @@ class RadarSensor:
 		"""Query sensor firmware version."""
 		return self.send_command("version", timeout=0.3)
 
+	def detect_firmware(self) -> dict:
+		"""Detect firmware type and version.
+
+		Returns:
+			dict with keys:
+				- type: 'vital_signs', 'oob_demo', or 'unknown'
+				- version: firmware version string if detected
+				- raw: raw version response
+		"""
+		response = self.get_version()
+		result = {
+			"type": "unknown",
+			"version": None,
+			"raw": response.strip(),
+		}
+
+		response_lower = response.lower()
+
+		# Check for vital signs firmware indicators
+		if "vital" in response_lower or "vitals" in response_lower:
+			result["type"] = "vital_signs"
+		elif "out of box" in response_lower or "oob" in response_lower:
+			result["type"] = "oob_demo"
+		elif "mmwave" in response_lower:
+			# Generic mmWave firmware - assume OOB demo unless other indicators
+			result["type"] = "oob_demo"
+
+		# Try to extract version number
+		import re
+		version_match = re.search(r'(\d+\.\d+\.\d+(?:\.\d+)?)', response)
+		if version_match:
+			result["version"] = version_match.group(1)
+
+		return result
+
 	def query_status(self) -> str:
 		"""Query sensor status."""
 		return self.send_command("sensorStop", timeout=0.2)

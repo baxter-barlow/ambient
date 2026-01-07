@@ -80,6 +80,10 @@ class VitalSigns(BaseModel):
 	respiratory_rate_confidence: float = 0.0
 	signal_quality: float = 0.0
 	motion_detected: bool = False
+	source: str = "estimated"  # "firmware" or "estimated"
+	breathing_waveform: list[float] | None = None
+	heart_waveform: list[float] | None = None
+	unwrapped_phase: float | None = None
 
 
 class WSMessage(BaseModel):
