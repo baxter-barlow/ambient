@@ -4,6 +4,8 @@ import numpy as np
 import pytest
 
 from ambient.sensor.frame import DetectedPoint, FrameBuffer, FrameHeader, RadarFrame
+from ambient.sensor.radar import RadarSensor, SensorDisconnectedError
+from ambient.sensor.config import SerialConfig
 
 
 class TestFrameHeader:
@@ -72,3 +74,50 @@ class TestFrameBuffer:
 		buf.append(sample_frame_bytes)
 		buf.clear()
 		assert len(buf) == 0
+
+
+class TestRadarSensorInit:
+	def test_default_config(self):
+		sensor = RadarSensor()
+		assert sensor._config.cli_port == "/dev/ttyUSB0"
+		assert sensor._config.data_port == "/dev/ttyUSB1"
+		assert not sensor._auto_reconnect
+
+	def test_custom_config(self):
+		config = SerialConfig(cli_port="/dev/ttyACM0", data_port="/dev/ttyACM1")
+		sensor = RadarSensor(config)
+		assert sensor._config.cli_port == "/dev/ttyACM0"
+
+	def test_auto_reconnect_option(self):
+		sensor = RadarSensor(auto_reconnect=True)
+		assert sensor._auto_reconnect
+
+
+class TestRadarSensorCallbacks:
+	def test_set_callbacks(self):
+		sensor = RadarSensor()
+		disconnect_called = []
+		reconnect_called = []
+
+		sensor.set_callbacks(
+			on_disconnect=lambda: disconnect_called.append(True),
+			on_reconnect=lambda: reconnect_called.append(True),
+		)
+
+		assert sensor._on_disconnect is not None
+		assert sensor._on_reconnect is not None
+
+	def test_check_connection_when_disconnected(self):
+		sensor = RadarSensor()
+		assert not sensor._check_connection()
+
+	def test_last_config_stored(self):
+		sensor = RadarSensor()
+		# Just check the attribute exists (can't actually configure without hardware)
+		assert sensor._last_config is None
+
+
+class TestSensorDisconnectedError:
+	def test_exception_can_be_raised(self):
+		with pytest.raises(SensorDisconnectedError):
+			raise SensorDisconnectedError("test error")
