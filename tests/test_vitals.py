@@ -85,6 +85,22 @@ class TestVitalSigns:
 		low = VitalSigns(heart_rate_bpm=72.0, respiratory_rate_bpm=15.0, heart_rate_confidence=0.2, respiratory_rate_confidence=0.2)
 		assert not low.is_valid()
 
+	def test_quality_summary_excellent(self):
+		v = VitalSigns(signal_quality=0.9)
+		assert "excellent" in v.quality_summary()
+
+	def test_quality_summary_good(self):
+		v = VitalSigns(signal_quality=0.7)
+		assert "good" in v.quality_summary()
+
+	def test_quality_summary_fair(self):
+		v = VitalSigns(signal_quality=0.5)
+		assert "fair" in v.quality_summary()
+
+	def test_quality_summary_poor(self):
+		v = VitalSigns(signal_quality=0.2)
+		assert "poor" in v.quality_summary()
+
 
 class TestVitalsExtractor:
 	def test_needs_warmup(self):
