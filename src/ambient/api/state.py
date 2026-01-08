@@ -110,8 +110,15 @@ class DeviceStateMachine:
 			config_name=self._config_name,
 		)
 
-	async def connect(self, cli_port: str, data_port: str, config_name: str | None = None) -> bool:
-		"""Connect to radar sensor."""
+	async def connect(self, cli_port: str, data_port: str, config_name: str | None = None, chirp_mode: bool = True) -> bool:
+		"""Connect to radar sensor.
+
+		Args:
+			cli_port: Serial port for CLI
+			data_port: Serial port for data
+			config_name: Config file name (without .cfg extension)
+			chirp_mode: If True, configure chirp firmware for PHASE output
+		"""
 		if not self._transition(DeviceState.CONNECTING):
 			return False
 
@@ -119,7 +126,7 @@ class DeviceStateMachine:
 			from ambient.processing.pipeline import ProcessingPipeline
 			from ambient.sensor.config import SerialConfig
 			from ambient.sensor.radar import RadarSensor
-			from ambient.vitals.extractor import VitalsExtractor
+			from ambient.vitals.extractor import VitalsExtractor, ChirpVitalsProcessor
 
 			self._cli_port = cli_port
 			self._data_port = data_port
@@ -131,7 +138,6 @@ class DeviceStateMachine:
 			self._sensor.connect()
 
 			self._pipeline = ProcessingPipeline()
-			self._extractor = VitalsExtractor()
 
 			if not self._transition(DeviceState.CONFIGURING):
 				raise RuntimeError("Failed to transition to configuring")
@@ -145,8 +151,35 @@ class DeviceStateMachine:
 					from ambient.sensor.config import create_vital_signs_config
 					self._sensor.configure(create_vital_signs_config())
 			else:
-				from ambient.sensor.config import create_vital_signs_config
-				self._sensor.configure(create_vital_signs_config())
+				# Default to chirp-compatible config
+				config_path = Path("configs") / "vital_signs_chirp.cfg"
+				if config_path.exists():
+					self._sensor.configure(config_path)
+				else:
+					from ambient.sensor.config import create_vital_signs_config
+					self._sensor.configure(create_vital_signs_config())
+
+			# Configure chirp firmware if enabled
+			if chirp_mode:
+				try:
+					# Check if chirp firmware is present
+					response = self._sensor.send_command("chirp status", timeout=0.2)
+					if "Chirp Status" in response or "Output mode" in response:
+						logger.info("Chirp firmware detected, configuring PHASE mode")
+						# Configure target detection (sensitive settings)
+						self._sensor.send_command("chirp target 0.2 5.0 5 4", timeout=0.2)
+						# Enable PHASE output with motion and target info
+						self._sensor.send_command("chirp mode 3 1 1", timeout=0.2)
+						# Use ChirpVitalsProcessor for chirp PHASE data
+						self._extractor = ChirpVitalsProcessor()
+					else:
+						logger.info("Standard firmware detected")
+						self._extractor = VitalsExtractor()
+				except Exception as e:
+					logger.warning(f"Chirp detection failed, using standard mode: {e}")
+					self._extractor = VitalsExtractor()
+			else:
+				self._extractor = VitalsExtractor()
 
 			self._sensor.start()
 
