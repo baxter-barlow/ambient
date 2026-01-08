@@ -16,6 +16,11 @@ from .frame import FrameBuffer, RadarFrame
 logger = logging.getLogger(__name__)
 
 
+class SensorDisconnectedError(Exception):
+	"""Raised when sensor connection is lost."""
+	pass
+
+
 class RadarSensor:
 	"""Interface for IWR6843AOPEVM mmWave radar.
 
@@ -23,7 +28,7 @@ class RadarSensor:
 	Use as context manager for automatic cleanup.
 	"""
 
-	def __init__(self, config: SerialConfig | None = None):
+	def __init__(self, config: SerialConfig | None = None, auto_reconnect: bool = False):
 		self._config = config or SerialConfig()
 		self._cli: serial.Serial | None = None
 		self._data: serial.Serial | None = None
@@ -32,6 +37,13 @@ class RadarSensor:
 		self._stream_thread: Thread | None = None
 		self._stop_event = Event()
 		self._callbacks: list[Callable[[RadarFrame], None]] = []
+		self._auto_reconnect = auto_reconnect
+		self._last_config: str | Path | ChirpConfig | list[str] | None = None
+		self._reconnect_attempts = 0
+		self._max_reconnect_attempts = 3
+		self._reconnect_delay = 1.0  # seconds
+		self._on_disconnect: Callable[[], None] | None = None
+		self._on_reconnect: Callable[[], None] | None = None
 
 	@property
 	def is_connected(self) -> bool:
@@ -100,6 +112,98 @@ class RadarSensor:
 		self._data = None
 		logger.info("Disconnected")
 
+	def reconnect(self, reconfigure: bool = True) -> bool:
+		"""Attempt to reconnect to the sensor.
+
+		Args:
+			reconfigure: If True and a previous config exists, re-apply it.
+
+		Returns:
+			True if reconnection successful, False otherwise.
+		"""
+		logger.info("Attempting reconnection...")
+
+		# Close any existing connections
+		if self._cli:
+			try:
+				self._cli.close()
+			except Exception:
+				pass
+		if self._data:
+			try:
+				self._data.close()
+			except Exception:
+				pass
+		self._cli = None
+		self._data = None
+
+		# Wait before reconnecting
+		time.sleep(self._reconnect_delay)
+
+		try:
+			self.connect()
+			self._reconnect_attempts = 0
+
+			if reconfigure and self._last_config:
+				self.configure(self._last_config)
+				self.start()
+
+			if self._on_reconnect:
+				self._on_reconnect()
+
+			logger.info("Reconnection successful")
+			return True
+
+		except Exception as e:
+			self._reconnect_attempts += 1
+			logger.warning(f"Reconnection attempt {self._reconnect_attempts} failed: {e}")
+			return False
+
+	def _check_connection(self) -> bool:
+		"""Check if the serial connection is still alive."""
+		if not self._cli or not self._data:
+			return False
+		try:
+			return self._cli.is_open and self._data.is_open
+		except Exception:
+			return False
+
+	def _handle_disconnect(self) -> bool:
+		"""Handle a detected disconnection.
+
+		Returns:
+			True if auto-reconnect succeeded, False otherwise.
+		"""
+		logger.warning("Sensor disconnection detected")
+
+		if self._on_disconnect:
+			self._on_disconnect()
+
+		if not self._auto_reconnect:
+			return False
+
+		while self._reconnect_attempts < self._max_reconnect_attempts:
+			if self.reconnect():
+				return True
+			time.sleep(self._reconnect_delay)
+
+		logger.error(f"Failed to reconnect after {self._max_reconnect_attempts} attempts")
+		return False
+
+	def set_callbacks(
+		self,
+		on_disconnect: Callable[[], None] | None = None,
+		on_reconnect: Callable[[], None] | None = None,
+	):
+		"""Set callbacks for connection events.
+
+		Args:
+			on_disconnect: Called when disconnection is detected.
+			on_reconnect: Called after successful reconnection.
+		"""
+		self._on_disconnect = on_disconnect
+		self._on_reconnect = on_reconnect
+
 	def _flush(self):
 		if self._cli:
 			self._cli.reset_input_buffer()
@@ -128,6 +232,9 @@ class RadarSensor:
 			commands = load_config_file(config)
 		else:
 			raise TypeError(f"Invalid config type: {type(config)}")
+
+		# Store config for potential reconnection
+		self._last_config = config
 
 		logger.info(f"Sending {len(commands)} configuration commands")
 
@@ -164,21 +271,35 @@ class RadarSensor:
 		logger.info("Sensor stopped")
 
 	def read_frame(self, timeout: float = 1.0) -> RadarFrame | None:
-		"""Read a single frame. Returns None if no frame available."""
+		"""Read a single frame. Returns None if no frame available.
+
+		Raises:
+			SensorDisconnectedError: If connection lost and auto_reconnect is False.
+		"""
 		if not self._data:
+			if self._auto_reconnect and self._handle_disconnect():
+				return self.read_frame(timeout)
 			return None
 
 		start = time.time()
 		while time.time() - start < timeout:
-			available = self._data.in_waiting
-			if available:
-				self._buffer.append(self._data.read(available))
+			try:
+				available = self._data.in_waiting
+				if available:
+					self._buffer.append(self._data.read(available))
 
-			frame = self._buffer.extract_frame()
-			if frame:
-				return frame
+				frame = self._buffer.extract_frame()
+				if frame:
+					return frame
 
-			time.sleep(0.005)
+				time.sleep(0.005)
+
+			except (serial.SerialException, OSError) as e:
+				logger.warning(f"Serial error during read: {e}")
+				if self._auto_reconnect:
+					if self._handle_disconnect():
+						continue
+				raise SensorDisconnectedError(f"Lost connection: {e}") from e
 
 		return None
 

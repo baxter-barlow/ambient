@@ -4,11 +4,12 @@ __version__ = "0.1.0"
 from ambient.processing.pipeline import ProcessedFrame, ProcessingPipeline
 from ambient.sensor.config import ChirpConfig, SerialConfig, create_vital_signs_config
 from ambient.sensor.frame import DetectedPoint, FrameBuffer, RadarFrame
-from ambient.sensor.radar import RadarSensor
+from ambient.sensor.radar import RadarSensor, SensorDisconnectedError
 from ambient.vitals.extractor import VitalsExtractor, VitalSigns
 
 __all__ = [
 	"RadarSensor",
+	"SensorDisconnectedError",
 	"RadarFrame",
 	"DetectedPoint",
 	"FrameBuffer",
