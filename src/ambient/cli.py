@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 import click
@@ -25,6 +27,25 @@ structlog.configure(
 
 logger = structlog.get_logger(__name__)
 console = Console()
+
+# Default paths - resolve relative to package installation
+def _get_configs_dir() -> Path:
+	"""Find the configs directory."""
+	# Check common locations
+	candidates = [
+		Path.cwd() / "configs",  # Current working directory
+		Path(__file__).parent.parent.parent.parent / "configs",  # Relative to package
+		Path.home() / ".ambient" / "configs",  # User home
+	]
+	for p in candidates:
+		if p.exists():
+			return p
+	# Default to cwd/configs even if it doesn't exist
+	return Path.cwd() / "configs"
+
+
+CONFIGS_DIR = _get_configs_dir()
+PROFILES_FILE = CONFIGS_DIR / "profiles.json"
 
 
 @click.group()
@@ -192,6 +213,276 @@ def info(cli_port: str, data_port: str) -> None:
 		sys.exit(1)
 	finally:
 		sensor.disconnect()
+
+
+@main.group()
+def config() -> None:
+	"""Manage radar configuration files."""
+	pass
+
+
+@config.command("list")
+def config_list() -> None:
+	"""List available configuration files."""
+	if not CONFIGS_DIR.exists():
+		console.print(f"[yellow]Config directory not found: {CONFIGS_DIR}[/]")
+		return
+
+	configs = sorted(CONFIGS_DIR.glob("*.cfg"))
+	if not configs:
+		console.print("[yellow]No configuration files found[/]")
+		return
+
+	t = Table(title="Available Configurations")
+	t.add_column("Name", style="cyan")
+	t.add_column("Size", style="dim")
+	t.add_column("Modified", style="dim")
+
+	for cfg in configs:
+		stat = cfg.stat()
+		modified = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
+		t.add_row(cfg.stem, f"{stat.st_size} bytes", modified)
+
+	console.print(t)
+
+
+@config.command("show")
+@click.argument("name")
+def config_show(name: str) -> None:
+	"""Show contents of a configuration file."""
+	cfg_path = CONFIGS_DIR / f"{name}.cfg"
+	if not cfg_path.exists():
+		console.print(f"[red]Config not found: {name}[/]")
+		console.print(f"Available: {', '.join(c.stem for c in CONFIGS_DIR.glob('*.cfg'))}")
+		sys.exit(1)
+
+	console.print(f"[bold cyan]Configuration: {name}[/]\n")
+	with open(cfg_path) as f:
+		for i, line in enumerate(f, 1):
+			line = line.rstrip()
+			if line.startswith("%"):
+				console.print(f"[dim]{i:3}  {line}[/]")
+			elif line:
+				console.print(f"[green]{i:3}[/]  {line}")
+			else:
+				console.print(f"{i:3}")
+
+
+@config.command("validate")
+@click.argument("name")
+@click.option("--cli-port", default="/dev/ttyUSB0", help="CLI serial port")
+def config_validate(name: str, cli_port: str) -> None:
+	"""Validate a configuration by sending to sensor (dry run)."""
+	from ambient.sensor.config import load_config_file
+
+	cfg_path = CONFIGS_DIR / f"{name}.cfg"
+	if not cfg_path.exists():
+		console.print(f"[red]Config not found: {name}[/]")
+		sys.exit(1)
+
+	try:
+		commands = load_config_file(cfg_path)
+		console.print(f"[green]Valid configuration with {len(commands)} commands[/]")
+
+		# Show key parameters
+		for cmd in commands:
+			if cmd.startswith("profileCfg"):
+				parts = cmd.split()
+				if len(parts) >= 3:
+					console.print(f"  Start freq: {parts[2]} GHz")
+			elif cmd.startswith("frameCfg"):
+				parts = cmd.split()
+				if len(parts) >= 6:
+					# frameCfg: start_chirp, end_chirp, num_loops, num_frames, frame_period, ...
+					console.print(f"  Loops: {parts[3]}, Period: {parts[5]} ms")
+			elif cmd.startswith("guiMonitor"):
+				console.print(f"  Output: {cmd}")
+
+	except Exception as e:
+		console.print(f"[red]Invalid config: {e}[/]")
+		sys.exit(1)
+
+
+@main.group()
+def profile() -> None:
+	"""Manage sensor configuration profiles."""
+	pass
+
+
+def _load_profiles() -> dict:
+	"""Load profiles from JSON file."""
+	if not PROFILES_FILE.exists():
+		return {}
+	try:
+		with open(PROFILES_FILE) as f:
+			return json.load(f)
+	except (json.JSONDecodeError, OSError):
+		return {}
+
+
+def _save_profiles(profiles: dict) -> None:
+	"""Save profiles to JSON file."""
+	PROFILES_FILE.parent.mkdir(parents=True, exist_ok=True)
+	with open(PROFILES_FILE, "w") as f:
+		json.dump(profiles, f, indent=2)
+
+
+@profile.command("list")
+def profile_list() -> None:
+	"""List saved profiles."""
+	profiles = _load_profiles()
+	if not profiles:
+		console.print("[yellow]No profiles saved[/]")
+		console.print("Create one with: ambient profile save <name> --config <config>")
+		return
+
+	t = Table(title="Saved Profiles")
+	t.add_column("Name", style="cyan")
+	t.add_column("Config", style="green")
+	t.add_column("Description")
+	t.add_column("Created", style="dim")
+
+	for name, data in profiles.items():
+		t.add_row(
+			name,
+			data.get("config", "-"),
+			data.get("description", "-"),
+			data.get("created", "-"),
+		)
+
+	console.print(t)
+
+
+@profile.command("save")
+@click.argument("name")
+@click.option("--config", "config_name", required=True, help="Config file name")
+@click.option("--description", "-d", default="", help="Profile description")
+def profile_save(name: str, config_name: str, description: str) -> None:
+	"""Save a new profile."""
+	# Verify config exists
+	cfg_path = CONFIGS_DIR / f"{config_name}.cfg"
+	if not cfg_path.exists():
+		console.print(f"[red]Config not found: {config_name}[/]")
+		sys.exit(1)
+
+	profiles = _load_profiles()
+	profiles[name] = {
+		"config": config_name,
+		"description": description,
+		"created": datetime.now().isoformat(),
+	}
+	_save_profiles(profiles)
+	console.print(f"[green]Profile '{name}' saved[/]")
+
+
+@profile.command("delete")
+@click.argument("name")
+def profile_delete(name: str) -> None:
+	"""Delete a saved profile."""
+	profiles = _load_profiles()
+	if name not in profiles:
+		console.print(f"[red]Profile not found: {name}[/]")
+		sys.exit(1)
+
+	del profiles[name]
+	_save_profiles(profiles)
+	console.print(f"[yellow]Profile '{name}' deleted[/]")
+
+
+@profile.command("apply")
+@click.argument("name")
+@click.option("--cli-port", default="/dev/ttyUSB0", help="CLI serial port")
+@click.option("--data-port", default="/dev/ttyUSB1", help="Data serial port")
+def profile_apply(name: str, cli_port: str, data_port: str) -> None:
+	"""Apply a saved profile to the sensor."""
+	from ambient.sensor import RadarSensor
+	from ambient.sensor.config import SerialConfig
+
+	profiles = _load_profiles()
+	if name not in profiles:
+		console.print(f"[red]Profile not found: {name}[/]")
+		sys.exit(1)
+
+	config_name = profiles[name]["config"]
+	cfg_path = CONFIGS_DIR / f"{config_name}.cfg"
+
+	console.print(f"[cyan]Applying profile '{name}' (config: {config_name})[/]")
+
+	try:
+		sensor = RadarSensor(SerialConfig(cli_port=cli_port, data_port=data_port))
+		sensor.connect()
+		sensor.configure(cfg_path)
+		console.print("[green]Profile applied successfully[/]")
+	except Exception as e:
+		console.print(f"[red]Failed to apply profile: {e}[/]")
+		sys.exit(1)
+	finally:
+		sensor.disconnect()
+
+
+@main.command()
+@click.option("--cli-port", default="/dev/ttyUSB0", help="CLI serial port")
+@click.option("--data-port", default="/dev/ttyUSB1", help="Data serial port")
+def detect(cli_port: str, data_port: str) -> None:
+	"""Detect and identify connected radar firmware."""
+	from ambient.sensor import RadarSensor
+	from ambient.sensor.config import SerialConfig
+
+	console.print("[cyan]Detecting radar firmware...[/]")
+
+	try:
+		sensor = RadarSensor(SerialConfig(cli_port=cli_port, data_port=data_port))
+		sensor.connect()
+		info = sensor.detect_firmware()
+
+		t = Table(title="Detected Firmware")
+		t.add_column("Property", style="cyan")
+		t.add_column("Value", style="green")
+
+		t.add_row("Type", info.get("type", "unknown"))
+		t.add_row("Version", info.get("version") or "N/A")
+		t.add_row("Raw Response", info.get("raw", "")[:60] + "..." if len(info.get("raw", "")) > 60 else info.get("raw", ""))
+
+		console.print(t)
+
+		# Recommend config based on firmware type
+		if info["type"] == "vital_signs":
+			console.print("\n[green]Recommended config: vital_signs.cfg[/]")
+		elif info["type"] == "oob_demo":
+			console.print("\n[green]Recommended config: working.cfg[/]")
+
+	except Exception as e:
+		console.print(f"[red]Detection failed: {e}[/]")
+		sys.exit(1)
+	finally:
+		sensor.disconnect()
+
+
+@main.command()
+@click.option("--cli-port", default="/dev/ttyUSB0", help="CLI serial port")
+def reset(cli_port: str) -> None:
+	"""Send sensor stop and flush commands (soft reset)."""
+	import serial
+
+	console.print("[yellow]Sending soft reset commands...[/]")
+
+	try:
+		with serial.Serial(cli_port, 115200, timeout=1.0) as cli:
+			cli.write(b"sensorStop\n")
+			time.sleep(0.2)
+			response = cli.read(cli.in_waiting).decode("utf-8", errors="ignore")
+			console.print(f"[dim]sensorStop: {response.strip()}[/]")
+
+			cli.write(b"flushCfg\n")
+			time.sleep(0.2)
+			response = cli.read(cli.in_waiting).decode("utf-8", errors="ignore")
+			console.print(f"[dim]flushCfg: {response.strip()}[/]")
+
+		console.print("[green]Sensor reset complete[/]")
+
+	except Exception as e:
+		console.print(f"[red]Reset failed: {e}[/]")
+		sys.exit(1)
 
 
 if __name__ == "__main__":

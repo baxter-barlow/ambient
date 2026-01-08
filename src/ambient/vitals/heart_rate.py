@@ -2,11 +2,23 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import structlog
 from numpy.typing import NDArray
 
 logger = structlog.get_logger(__name__)
+
+
+@dataclass
+class EstimationResult:
+	"""Result from rate estimation with quality metrics."""
+	rate_bpm: float | None
+	confidence: float
+	snr_db: float = 0.0
+	spectral_purity: float = 0.0
+	peak_prominence: float = 0.0
 
 
 class HeartRateEstimator:
@@ -28,8 +40,13 @@ class HeartRateEstimator:
 
 	def estimate(self, signal: NDArray[np.float32]) -> tuple[float | None, float]:
 		"""Returns (heart_rate_bpm, confidence)."""
+		result = self.estimate_with_quality(signal)
+		return result.rate_bpm, result.confidence
+
+	def estimate_with_quality(self, signal: NDArray[np.float32]) -> EstimationResult:
+		"""Returns EstimationResult with rate and quality metrics."""
 		if len(signal) < 20:
-			return None, 0.0
+			return EstimationResult(rate_bpm=None, confidence=0.0)
 
 		n_fft = len(signal) * self.fft_padding_factor
 		fft_result = np.fft.rfft(signal, n=n_fft)
@@ -41,7 +58,7 @@ class HeartRateEstimator:
 		band_magnitude = magnitude[freq_mask]
 
 		if len(band_magnitude) == 0:
-			return None, 0.0
+			return EstimationResult(rate_bpm=None, confidence=0.0)
 
 		peak_idx = np.argmax(band_magnitude)
 		peak_freq = band_freqs[peak_idx]
@@ -49,19 +66,46 @@ class HeartRateEstimator:
 
 		heart_rate_bpm = peak_freq * 60.0
 
+		# Calculate quality metrics
 		mean_mag = np.mean(band_magnitude)
-		confidence = min(1.0, (peak_mag / mean_mag - 1) / 5.0) if mean_mag > 0 else 0.0
+		median_mag = np.median(band_magnitude)
 
-		# penalize large jumps
+		# SNR: peak power vs average noise floor
+		noise_floor = np.percentile(band_magnitude, 25)
+		snr_db = 20 * np.log10(peak_mag / noise_floor) if noise_floor > 0 else 0.0
+
+		# Spectral purity: how much energy is concentrated at peak (0-1, higher=better)
+		# Uses ratio of peak to total band energy
+		total_energy = np.sum(band_magnitude ** 2)
+		peak_energy = peak_mag ** 2
+		spectral_purity = peak_energy / total_energy if total_energy > 0 else 0.0
+
+		# Peak prominence: peak vs median ratio
+		peak_prominence = (peak_mag / median_mag - 1) if median_mag > 0 else 0.0
+
+		# Confidence: combine multiple metrics
+		base_confidence = min(1.0, (peak_mag / mean_mag - 1) / 5.0) if mean_mag > 0 else 0.0
+
+		# Boost confidence if SNR is good (>10dB)
+		if snr_db > 10:
+			base_confidence = min(1.0, base_confidence * 1.2)
+
+		# Penalize large jumps from previous estimate
 		if self._last_hr is not None and abs(heart_rate_bpm - self._last_hr) > 20:
-			confidence *= 0.5
+			base_confidence *= 0.5
 
 		self._last_hr = heart_rate_bpm
 		self._hr_history.append(heart_rate_bpm)
 		if len(self._hr_history) > 10:
 			self._hr_history = self._hr_history[-10:]
 
-		return heart_rate_bpm, confidence
+		return EstimationResult(
+			rate_bpm=heart_rate_bpm,
+			confidence=base_confidence,
+			snr_db=snr_db,
+			spectral_purity=spectral_purity,
+			peak_prominence=peak_prominence,
+		)
 
 	def estimate_with_autocorr(self, signal: NDArray[np.float32]) -> tuple[float | None, float]:
 		"""Alternative autocorrelation-based estimation."""

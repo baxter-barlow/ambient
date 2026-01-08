@@ -53,10 +53,14 @@ export interface VitalSigns {
 	respiratory_rate_confidence: number
 	signal_quality: number
 	motion_detected: boolean
-	source: 'firmware' | 'estimated'
+	source: 'firmware' | 'estimated' | 'chirp'
 	breathing_waveform?: number[]
 	heart_waveform?: number[]
 	unwrapped_phase?: number
+	// Enhanced quality metrics
+	hr_snr_db?: number
+	rr_snr_db?: number
+	phase_stability?: number
 }
 
 export interface WSMessage<T = unknown> {

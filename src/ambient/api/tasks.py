@@ -67,6 +67,10 @@ def vitals_to_dict(vitals) -> dict:
 		motion_detected=vitals.motion_detected,
 		source=getattr(vitals, 'source', 'estimated'),
 		unwrapped_phase=getattr(vitals, 'unwrapped_phase', None),
+		# Enhanced quality metrics
+		hr_snr_db=getattr(vitals, 'hr_snr_db', 0.0),
+		rr_snr_db=getattr(vitals, 'rr_snr_db', 0.0),
+		phase_stability=getattr(vitals, 'phase_stability', 0.0),
 	)
 	# Add waveforms if available
 	if vitals.respiratory_waveform is not None:
