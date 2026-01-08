@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ambient"
-version = "0.3.0"
+version = "0.3.1"
 description = "Contact-free sleep biometrics using TI IWR6843AOPEVM mmWave radar"
 readme = "README.md"
 license = {text = "MIT"}

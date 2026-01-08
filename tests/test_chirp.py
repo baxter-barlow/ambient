@@ -9,10 +9,14 @@ from ambient.sensor.frame import (
     HEADER_SIZE,
     MAGIC_WORD,
     TLV_CHIRP_PHASE_OUTPUT,
+    TLV_CHIRP_COMPLEX_RANGE_FFT,
+    TLV_CHIRP_TARGET_IQ,
+    ChirpComplexRangeFFT,
     ChirpMotionStatus,
     ChirpPhaseOutput,
     ChirpPresence,
     ChirpTargetInfo,
+    ChirpTargetIQ,
     FrameBuffer,
     RadarFrame,
 )
@@ -61,6 +65,39 @@ def chirp_target_info_tlv_data() -> bytes:
     """TARGET_INFO TLV data."""
     # primaryBin(2) + primaryMag(2) + range_q8(2) + confidence(1) + numTargets(1) + secondaryBin(2) + reserved(2)
     return struct.pack("<HHHBBHH", 20, 900, 512, 85, 1, 0, 0)
+
+
+@pytest.fixture
+def chirp_complex_range_fft_data() -> bytes:
+    """COMPLEX_RANGE_FFT TLV with 8 range bins."""
+    # Header: numBins(2) + chirpIdx(2) + rxAnt(2) + reserved(2) = 8 bytes
+    header = struct.pack("<HHHH", 8, 0, 0, 0)
+
+    # 8 I/Q pairs: imag(h) + real(h) = 4 bytes each
+    iq_data = b""
+    for i in range(8):
+        imag = int(100 * np.sin(2 * np.pi * i / 8) * 100)  # Sinusoidal test signal
+        real = int(100 * np.cos(2 * np.pi * i / 8) * 100)
+        iq_data += struct.pack("<hh", imag, real)
+
+    return header + iq_data
+
+
+@pytest.fixture
+def chirp_target_iq_data() -> bytes:
+    """TARGET_IQ TLV with 4 bins."""
+    # Header: numBins(2) + centerBin(2) + timestamp_us(4) = 8 bytes
+    header = struct.pack("<HHI", 4, 20, 1000000)
+
+    # 4 bins: binIndex(H) + imag(h) + real(h) + reserved(H) = 8 bytes each
+    bins = b""
+    for i in range(4):
+        bin_idx = 19 + i
+        imag = 500 + i * 100
+        real = 800 + i * 50
+        bins += struct.pack("<HhhH", bin_idx, imag, real, 0)
+
+    return header + bins
 
 
 @pytest.fixture
@@ -183,6 +220,74 @@ class TestChirpTargetInfo:
         assert result.confidence == 85
         assert result.num_targets == 1
         assert result.secondary_bin == 0
+
+
+# ============================================================================
+# ChirpComplexRangeFFT Tests
+# ============================================================================
+
+
+class TestChirpComplexRangeFFT:
+    def test_from_bytes(self, chirp_complex_range_fft_data):
+        result = ChirpComplexRangeFFT.from_bytes(chirp_complex_range_fft_data)
+        assert result is not None
+        assert result.num_range_bins == 8
+        assert result.chirp_index == 0
+        assert result.rx_antenna == 0
+        assert len(result.iq_data) == 8
+
+    def test_iq_data_is_complex(self, chirp_complex_range_fft_data):
+        result = ChirpComplexRangeFFT.from_bytes(chirp_complex_range_fft_data)
+        assert result is not None
+        assert result.iq_data.dtype == np.complex64
+        # Check that the first value has non-zero real/imag parts
+        first = result.iq_data[0]
+        assert first.real != 0 or first.imag != 0
+
+    def test_invalid_data(self):
+        result = ChirpComplexRangeFFT.from_bytes(b"\x00\x00")
+        assert result is None
+
+    def test_empty_bins(self):
+        # Header only, no I/Q data
+        header = struct.pack("<HHHH", 0, 0, 0, 0)
+        result = ChirpComplexRangeFFT.from_bytes(header)
+        assert result is not None
+        assert result.num_range_bins == 0
+        assert len(result.iq_data) == 0
+
+
+# ============================================================================
+# ChirpTargetIQ Tests
+# ============================================================================
+
+
+class TestChirpTargetIQ:
+    def test_from_bytes(self, chirp_target_iq_data):
+        result = ChirpTargetIQ.from_bytes(chirp_target_iq_data)
+        assert result is not None
+        assert result.num_bins == 4
+        assert result.center_bin == 20
+        assert result.timestamp_us == 1000000
+        assert len(result.iq_data) == 4
+        assert len(result.bin_indices) == 4
+
+    def test_bin_indices(self, chirp_target_iq_data):
+        result = ChirpTargetIQ.from_bytes(chirp_target_iq_data)
+        assert result is not None
+        # Bins should be 19, 20, 21, 22
+        assert result.bin_indices == [19, 20, 21, 22]
+
+    def test_iq_values(self, chirp_target_iq_data):
+        result = ChirpTargetIQ.from_bytes(chirp_target_iq_data)
+        assert result is not None
+        # First bin: imag=500, real=800
+        assert result.iq_data[0].real == 800
+        assert result.iq_data[0].imag == 500
+
+    def test_invalid_data(self):
+        result = ChirpTargetIQ.from_bytes(b"\x00\x00")
+        assert result is None
 
 
 # ============================================================================

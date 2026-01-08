@@ -32,8 +32,12 @@ class VitalSigns:
 	signal_quality: float = 0.0
 	motion_detected: bool = False
 	timestamp: float = 0.0
-	source: str = "estimated"  # "firmware" or "estimated"
+	source: str = "estimated"  # "firmware", "estimated", or "chirp"
 	unwrapped_phase: float | None = None
+	# Enhanced quality metrics
+	hr_snr_db: float = 0.0
+	rr_snr_db: float = 0.0
+	phase_stability: float = 0.0  # Lower = more stable
 
 	def is_valid(self, min_confidence: float = 0.5) -> bool:
 		hr_ok = (
@@ -47,6 +51,18 @@ class VitalSigns:
 			and self.respiratory_rate_confidence >= min_confidence
 		)
 		return hr_ok and rr_ok
+
+	def quality_summary(self) -> str:
+		"""Human-readable quality assessment."""
+		if self.signal_quality >= 0.8:
+			level = "excellent"
+		elif self.signal_quality >= 0.6:
+			level = "good"
+		elif self.signal_quality >= 0.4:
+			level = "fair"
+		else:
+			level = "poor"
+		return f"{level} ({self.signal_quality:.0%})"
 
 	@classmethod
 	def from_firmware(cls, vital_signs_tlv, timestamp: float = 0.0) -> VitalSigns:
@@ -135,7 +151,11 @@ class VitalsExtractor:
 		phase_signal = np.array(self._phase_buffer, dtype=np.float32)
 		result.phase_signal = phase_signal
 
-		motion_metric = np.std(np.diff(phase_signal))
+		# Calculate phase stability (variance of phase deltas)
+		phase_deltas = np.diff(phase_signal)
+		result.phase_stability = float(np.std(phase_deltas))
+
+		motion_metric = result.phase_stability
 		result.motion_detected = bool(motion_metric > self.config.motion_threshold)
 		if result.motion_detected:
 			return result
@@ -146,15 +166,21 @@ class VitalsExtractor:
 		rr_filtered = self._rr_filter.process(phase_signal)
 		result.respiratory_waveform = rr_filtered
 
-		hr, hr_conf = self._hr_estimator.estimate(hr_filtered)
-		result.heart_rate_bpm = hr
-		result.heart_rate_confidence = hr_conf
+		# Use enhanced estimation with quality metrics
+		hr_result = self._hr_estimator.estimate_with_quality(hr_filtered)
+		result.heart_rate_bpm = hr_result.rate_bpm
+		result.heart_rate_confidence = hr_result.confidence
+		result.hr_snr_db = hr_result.snr_db
 
 		rr, rr_conf = self._rr_estimator.estimate(rr_filtered)
 		result.respiratory_rate_bpm = rr
 		result.respiratory_rate_confidence = rr_conf
 
-		result.signal_quality = (hr_conf + rr_conf) / 2
+		# Combine confidences with SNR weighting for overall quality
+		base_quality = (hr_result.confidence + rr_conf) / 2
+		# Boost quality if SNR is good
+		snr_bonus = min(0.1, hr_result.snr_db / 100) if hr_result.snr_db > 0 else 0
+		result.signal_quality = min(1.0, base_quality + snr_bonus)
 		return result
 
 	def process_frame(self, frame: ProcessedFrame) -> VitalSigns:
