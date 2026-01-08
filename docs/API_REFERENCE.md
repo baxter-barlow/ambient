@@ -145,7 +145,7 @@ ambient profile delete my_profile
 Main interface for radar communication.
 
 ```python
-from ambient import RadarSensor
+from ambient import RadarSensor, SensorDisconnectedError
 from ambient.sensor.config import SerialConfig
 
 # Initialize with default ports
@@ -159,6 +159,9 @@ config = SerialConfig(
     data_baud=921600,
 )
 sensor = RadarSensor(config)
+
+# Enable auto-reconnection
+sensor = RadarSensor(config, auto_reconnect=True)
 ```
 
 #### Methods
@@ -208,6 +211,25 @@ info = sensor.detect_firmware()
 
 ##### `get_version() -> str`
 Query firmware version string.
+
+##### `reconnect(reconfigure=True) -> bool`
+Attempt to reconnect after disconnection.
+
+```python
+if not sensor.is_connected:
+    if sensor.reconnect():
+        print("Reconnected successfully")
+```
+
+##### `set_callbacks(on_disconnect, on_reconnect)`
+Set callbacks for connection events.
+
+```python
+sensor.set_callbacks(
+    on_disconnect=lambda: print("Lost connection!"),
+    on_reconnect=lambda: print("Reconnected!"),
+)
+```
 
 #### Context Manager
 

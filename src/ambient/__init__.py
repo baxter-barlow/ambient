@@ -1,5 +1,5 @@
 """Sleep biometrics monitoring using TI IWR6843AOPEVM mmWave radar."""
-__version__ = "0.1.0"
+__version__ = "0.4.0"
 
 from ambient.processing.pipeline import ProcessedFrame, ProcessingPipeline
 from ambient.sensor.config import ChirpConfig, SerialConfig, create_vital_signs_config
