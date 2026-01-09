@@ -217,6 +217,9 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 								chirp_vitals_fallback = ChirpVitalsProcessor()
 								logger.info("Created fallback ChirpVitalsProcessor for chirp_phase data")
 							vitals = chirp_vitals_fallback.process_frame(frame)
+					elif isinstance(extractor, ChirpVitalsProcessor):
+						# ChirpVitalsProcessor but no chirp_phase in this frame - skip vitals
+						vitals = None
 					else:
 						# VitalsExtractor expects ProcessedFrame
 						vitals = extractor.process_frame(processed)
