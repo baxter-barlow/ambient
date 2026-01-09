@@ -56,6 +56,16 @@ class TestFrameBuffer:
 		assert frame is not None
 		assert frame.header.frame_number == 1
 
+	def test_extracted_frame_header_validates(self, sample_frame_bytes):
+		"""Test that frames extracted by FrameBuffer have valid headers."""
+		buf = FrameBuffer()
+		buf.append(sample_frame_bytes)
+		frame = buf.extract_frame()
+		assert frame is not None
+		assert frame.header is not None
+		# Header should validate since _raw_data contains magic word
+		assert frame.header.validate() is True
+
 	def test_handles_partial_data(self, sample_frame_bytes):
 		buf = FrameBuffer()
 		buf.append(sample_frame_bytes[:20])

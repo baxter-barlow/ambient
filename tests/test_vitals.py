@@ -5,8 +5,8 @@ import pytest
 
 from ambient.vitals.extractor import VitalsExtractor, VitalSigns
 from ambient.vitals.filters import BandpassFilter, ExponentialSmoother, MedianFilter
-from ambient.vitals.heart_rate import HeartRateEstimator
-from ambient.vitals.respiratory import RespiratoryRateEstimator
+from ambient.vitals.heart_rate import HeartRateEstimator, EstimationResult
+from ambient.vitals.respiratory import RespiratoryRateEstimator, RREstimationResult
 
 
 class TestBandpassFilter:
@@ -70,6 +70,22 @@ class TestRespiratoryRateEstimator:
 		rr, conf = est.estimate(filtered)
 		assert rr is not None
 		assert 10 <= rr <= 20  # expect ~15 BPM
+
+	def test_estimate_with_quality_returns_result(self, sample_phase_signal):
+		f = BandpassFilter(sample_rate_hz=20.0, low_freq_hz=0.1, high_freq_hz=0.6)
+		filtered = f.process(sample_phase_signal)
+		est = RespiratoryRateEstimator(sample_rate_hz=20.0)
+		result = est.estimate_with_quality(filtered)
+		assert isinstance(result, RREstimationResult)
+		assert result.rate_bpm is not None
+		assert result.snr_db >= 0
+		assert 0 <= result.spectral_purity <= 1
+
+	def test_estimate_with_quality_short_signal(self):
+		est = RespiratoryRateEstimator()
+		result = est.estimate_with_quality(np.zeros(10))
+		assert result.rate_bpm is None
+		assert result.confidence == 0.0
 
 
 class TestVitalSigns:
