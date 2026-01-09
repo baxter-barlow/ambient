@@ -495,3 +495,258 @@ except ValueError as e:
 | `AMBIENT_CLI_PORT` | /dev/ttyUSB0 | Default CLI port |
 | `AMBIENT_DATA_PORT` | /dev/ttyUSB1 | Default data port |
 | `AMBIENT_DATA_DIR` | data/ | Recording storage directory |
+| `AMBIENT_PERF_ENABLED` | false | Enable performance profiling |
+| `AMBIENT_PERF_LOG_INTERVAL` | 100 | Log stats every N frames |
+| `AMBIENT_STREAM_MAX_QUEUE` | 100 | WebSocket broadcast queue size |
+| `AMBIENT_STREAM_DROP_POLICY` | oldest | Queue drop policy (oldest/newest/none) |
+| `AMBIENT_STREAM_MAX_HEATMAP` | 64 | Max range_doppler matrix size |
+| `AMBIENT_STREAM_MAX_WAVEFORM` | 200 | Max waveform samples |
+| `AMBIENT_STREAM_VITALS_HZ` | 1.0 | Vitals broadcast rate |
+
+---
+
+## REST API Endpoints
+
+### Device Endpoints
+
+#### `GET /api/device/status`
+Get current device status.
+
+Response:
+```json
+{
+  "state": "streaming",
+  "cli_port": "/dev/ttyUSB0",
+  "data_port": "/dev/ttyUSB1",
+  "frame_rate": 20.1,
+  "frame_count": 1234,
+  "dropped_frames": 0,
+  "buffer_usage": 0.12,
+  "error": null,
+  "config_name": "default"
+}
+```
+
+#### `GET /api/device/metrics`
+Get performance profiling metrics.
+
+Response:
+```json
+{
+  "enabled": true,
+  "frame_count": 5000,
+  "sampled_count": 5000,
+  "dropped_frames": 0,
+  "sample_rate": 1.0,
+  "timing": {
+    "total": {
+      "count": 5000,
+      "mean_ms": 2.5,
+      "min_ms": 1.2,
+      "max_ms": 15.3,
+      "p50_ms": 2.3,
+      "p95_ms": 4.1,
+      "p99_ms": 8.2,
+      "last_ms": 2.4
+    },
+    "pipeline": {...},
+    "vitals": {...},
+    "broadcast": {...}
+  },
+  "queues": {
+    "sensor": {
+      "current_depth": 5,
+      "max_depth": 20,
+      "avg_depth": 3.2,
+      "total_enqueued": 5000,
+      "total_dropped": 0,
+      "drop_rate_percent": 0.0
+    }
+  },
+  "websocket": {
+    "total": {
+      "messages_sent": 10000,
+      "messages_dropped": 0,
+      "bytes_sent": 50000000,
+      "send_errors": 0,
+      "avg_send_time_ms": 1.2,
+      "queue_depth": 3
+    },
+    "by_channel": {...},
+    "connections": {"sensor": 2, "logs": 1}
+  }
+}
+```
+
+#### `POST /api/device/metrics/reset`
+Reset all performance metrics.
+
+#### `POST /api/device/connect`
+Connect to radar sensor.
+
+Request:
+```json
+{
+  "cli_port": "/dev/ttyUSB0",
+  "data_port": "/dev/ttyUSB1",
+  "config": "default"
+}
+```
+
+#### `POST /api/device/disconnect`
+Disconnect from radar sensor.
+
+#### `POST /api/device/stop`
+Emergency stop - immediately halt all acquisition.
+
+#### `POST /api/device/verify-ports`
+Verify serial ports before connecting.
+
+Request:
+```json
+{
+  "cli_port": "/dev/ttyUSB0",
+  "data_port": "/dev/ttyUSB1"
+}
+```
+
+Response:
+```json
+{
+  "cli_port": {"path": "/dev/ttyUSB0", "status": "ok", "details": "TI mmWave detected"},
+  "data_port": {"path": "/dev/ttyUSB1", "status": "ok", "details": "Port accessible at 921600 baud"},
+  "overall": "pass"
+}
+```
+
+### Config Endpoints
+
+#### `GET /api/config/validate`
+Validate current application configuration.
+
+Response:
+```json
+{
+  "valid": true,
+  "errors": [],
+  "config": {
+    "sensor": {...},
+    "api": {...},
+    "streaming": {...},
+    "performance": {...},
+    "chirp": {...}
+  }
+}
+```
+
+#### `GET /api/config/profiles`
+List all saved configuration profiles.
+
+#### `GET /api/config/profiles/{name}`
+Get a specific configuration profile.
+
+#### `POST /api/config/profiles`
+Create a new configuration profile.
+
+#### `DELETE /api/config/profiles/{name}`
+Delete a configuration profile.
+
+#### `POST /api/config/flash`
+Flash configuration to device.
+
+### Recording Endpoints
+
+#### `GET /api/recordings`
+List all recordings.
+
+#### `GET /api/recordings/status`
+Get current recording status.
+
+#### `POST /api/recordings/start`
+Start a new recording.
+
+Request:
+```json
+{
+  "name": "session_001",
+  "format": "h5"
+}
+```
+
+#### `POST /api/recordings/stop`
+Stop current recording.
+
+#### `DELETE /api/recordings/{id}`
+Delete a recording.
+
+---
+
+## Scripts Reference
+
+### Load Testing Scripts
+
+#### `scripts/simulate_frames.py`
+Generate synthetic radar frames for load testing without hardware.
+
+```bash
+# Standard test
+python scripts/simulate_frames.py
+
+# Using load profile
+python scripts/simulate_frames.py --profile stress
+
+# Custom settings
+python scripts/simulate_frames.py --fps 30 --duration 120 --no-ws
+```
+
+Options:
+- `--profile`: Load profile (standard, stress, sustained)
+- `--fps`: Frames per second
+- `--duration`: Test duration in seconds
+- `--no-ws`: Disable WebSocket broadcast
+- `--include-doppler`: Include range_doppler matrix
+- `--output`: Save stats to file
+
+#### `scripts/replay_recording.py`
+Replay recorded HDF5/Parquet files through the pipeline.
+
+```bash
+# Replay at original speed
+python scripts/replay_recording.py data/session.h5
+
+# Fast replay (2x speed)
+python scripts/replay_recording.py data/session.h5 --speed 2.0
+
+# Validate only (no replay)
+python scripts/replay_recording.py data/session.h5 --validate
+```
+
+Options:
+- `--speed`: Playback speed multiplier (default: 1.0)
+- `--broadcast`: Broadcast to WebSocket
+- `--validate`: Validate file without replaying
+- `--loop`: Loop replay indefinitely
+
+#### `scripts/validate_recording.py`
+Validate recording files for schema and data integrity.
+
+```bash
+# Validate single file
+python scripts/validate_recording.py data/session.h5
+
+# Verbose output
+python scripts/validate_recording.py data/session.h5 --verbose
+
+# Batch validation with summary
+python scripts/validate_recording.py data/*.h5 --summary
+
+# JSON output
+python scripts/validate_recording.py data/session.h5 --json
+```
+
+Validates:
+- Schema compliance (HDF5/Parquet structure)
+- Timestamp monotonicity
+- Data ranges (heart rate, respiratory rate, etc.)
+- Frame sequence gaps
+- Metadata presence
