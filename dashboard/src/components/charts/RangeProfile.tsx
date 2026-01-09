@@ -5,6 +5,8 @@ import ChartContainer from '../common/ChartContainer'
 
 interface Props {
 	data: number[]
+	source?: 'tlv2' | 'iq' | null
+	isChirpFirmware?: boolean
 	width?: number
 	height?: number
 	isLoading?: boolean
@@ -15,7 +17,7 @@ interface CursorData {
 	value: number
 }
 
-export default function RangeProfile({ data, width = 600, height = 300, isLoading = false }: Props) {
+export default function RangeProfile({ data, source, isChirpFirmware, width = 600, height = 300, isLoading = false }: Props) {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const chartRef = useRef<uPlot | null>(null)
 	const [yRange, setYRange] = useState<[number, number]>([0, 1])
@@ -134,11 +136,29 @@ export default function RangeProfile({ data, width = 600, height = 300, isLoadin
 		</span>
 	) : null
 
+	// Source badge for data origin
+	const sourceBadge = source ? (
+		<span className={`px-1.5 py-0.5 rounded text-micro font-semibold uppercase tracking-wide ${
+			source === 'iq'
+				? 'bg-accent-teal/15 text-accent-teal border border-accent-teal/25'
+				: 'bg-accent-green/15 text-accent-green border border-accent-green/25'
+		}`}>
+			{source === 'iq' ? 'I/Q' : 'TLV'}
+		</span>
+	) : null
+
+	// Empty message based on firmware type
+	const emptyMessage = isChirpFirmware
+		? 'Waiting for I/Q data (TLV 0x0500)...'
+		: 'Waiting for range data...'
+
 	return (
 		<ChartContainer
 			title="Range Profile"
 			subtitle={
 				<>
+					{sourceBadge}
+					{sourceBadge && (cursorReadout || stats) && <span className="mx-2 text-border">|</span>}
 					{cursorReadout}
 					{cursorReadout && stats && <span className="mx-2 text-border">|</span>}
 					{stats && <span>{stats.bins} bins | max: {stats.max} dB | mean: {stats.mean} dB</span>}
@@ -146,7 +166,7 @@ export default function RangeProfile({ data, width = 600, height = 300, isLoadin
 			}
 			isLoading={isLoading}
 			isEmpty={data.length === 0 && !isLoading}
-			emptyMessage="Waiting for range data..."
+			emptyMessage={emptyMessage}
 			loadingMessage="Loading range profile..."
 			width={width}
 			height={height}

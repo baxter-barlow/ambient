@@ -88,22 +88,27 @@ def frame_to_dict(frame, processed=None, config: StreamingConfig | None = None) 
 			snr=float(pt.snr) if hasattr(pt, "snr") else 0.0,
 		).model_dump())
 
-	# Derive range_profile from TLV 2, or fall back to chirp_complex_fft (TLV 0x0500)
-	range_profile = []
-	if frame.range_profile is not None:
-		range_profile = frame.range_profile.tolist()
-	elif frame.chirp_complex_fft is not None and len(frame.chirp_complex_fft.iq_data) > 0:
-		# Derive range profile from chirp I/Q data: magnitude in dB
-		magnitudes = np.abs(frame.chirp_complex_fft.iq_data)
-		range_profile = (20 * np.log10(magnitudes + 1)).tolist()
-
 	# Detect chirp firmware (has chirp-specific TLVs)
 	is_chirp = frame.chirp_phase is not None or frame.chirp_complex_fft is not None
+
+	# Derive range_profile: prefer I/Q for chirp firmware, fall back to TLV 2
+	range_profile = []
+	range_profile_source = None  # 'tlv2', 'iq', or None
+	if is_chirp and frame.chirp_complex_fft is not None and len(frame.chirp_complex_fft.iq_data) > 0:
+		# Chirp firmware: use I/Q data for range profile (magnitude in dB)
+		magnitudes = np.abs(frame.chirp_complex_fft.iq_data)
+		range_profile = (20 * np.log10(magnitudes + 1)).tolist()
+		range_profile_source = 'iq'
+	elif frame.range_profile is not None and len(frame.range_profile) > 0:
+		# Standard firmware: use TLV 2
+		range_profile = frame.range_profile.tolist()
+		range_profile_source = 'tlv2'
 
 	result = {
 		"frame_number": frame.header.frame_number if frame.header else 0,
 		"timestamp": frame.timestamp,
 		"range_profile": range_profile,
+		"range_profile_source": range_profile_source,
 		"detected_points": detected,
 		"is_chirp_firmware": is_chirp,
 	}

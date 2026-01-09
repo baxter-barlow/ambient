@@ -41,6 +41,7 @@ export interface SensorFrame {
 	frame_number: number
 	timestamp: number
 	range_profile: number[]
+	range_profile_source?: 'tlv2' | 'iq' | null
 	range_doppler?: number[][]
 	detected_points: DetectedPoint[]
 	phase?: number

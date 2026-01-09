@@ -135,7 +135,7 @@ class TestChirpModeConfig:
 		assert config.target_range_max_m == 5.0
 		assert config.target_bins == 5
 		assert config.target_threshold == 4
-		assert config.output_mode == 3
+		assert config.output_mode == 5
 		assert config.motion_output is True
 		assert config.target_info_output is True
 		assert config.detection_timeout_s == 0.2
@@ -166,7 +166,7 @@ class TestChirpModeConfig:
 		assert any("target_bins" in e for e in errors)
 
 	def test_validation_fails_for_invalid_output_mode(self):
-		config = ChirpModeConfig(output_mode=5)
+		config = ChirpModeConfig(output_mode=6)
 		errors = config.validate()
 		assert any("output_mode" in e for e in errors)
 

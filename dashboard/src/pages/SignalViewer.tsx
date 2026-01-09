@@ -269,6 +269,8 @@ export default function SignalViewer() {
 			<div className="grid grid-cols-2 gap-4">
 				<RangeProfile
 					data={latestFrame?.range_profile ?? []}
+					source={latestFrame?.range_profile_source}
+					isChirpFirmware={latestFrame?.is_chirp_firmware}
 					width={580}
 					height={280}
 				/>

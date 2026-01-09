@@ -113,7 +113,7 @@ class ChirpModeConfig:
 	target_range_max_m: float = 5.0  # Maximum detection range
 	target_bins: int = 5  # Number of range bins to track
 	target_threshold: int = 4  # Detection threshold
-	output_mode: int = 3  # 1=PHASE, 2=PHASE+Motion, 3=PHASE+Motion+Target
+	output_mode: int = 5  # 3=PHASE, 5=PHASE_IQ (phase + I/Q range profile)
 	motion_output: bool = True  # Include motion detection
 	target_info_output: bool = True  # Include target info
 	detection_timeout_s: float = 0.2  # Timeout for chirp detection command
@@ -135,8 +135,8 @@ class ChirpModeConfig:
 			errors.append(f"target_bins ({self.target_bins}) must be between 1 and 20")
 		if self.target_threshold < 1 or self.target_threshold > 10:
 			errors.append(f"target_threshold ({self.target_threshold}) must be between 1 and 10")
-		if self.output_mode not in (1, 2, 3):
-			errors.append(f"output_mode ({self.output_mode}) must be 1, 2, or 3")
+		if self.output_mode not in (1, 2, 3, 5):
+			errors.append(f"output_mode ({self.output_mode}) must be 1, 2, 3, or 5")
 		if self.detection_timeout_s < 0.05 or self.detection_timeout_s > 2.0:
 			errors.append(f"detection_timeout_s ({self.detection_timeout_s}) must be between 0.05 and 2.0")
 
