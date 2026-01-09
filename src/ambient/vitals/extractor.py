@@ -322,16 +322,26 @@ class ChirpVitalsProcessor:
 		rr_filtered = self._rr_filter.process(phase_signal)
 		result.respiratory_waveform = rr_filtered
 
-		# Estimate rates
-		hr, hr_conf = self._hr_estimator.estimate(hr_filtered)
-		result.heart_rate_bpm = hr
-		result.heart_rate_confidence = hr_conf
+		# Calculate phase stability (variance of phase deltas)
+		phase_deltas = np.diff(phase_signal)
+		result.phase_stability = float(np.std(phase_deltas))
 
-		rr, rr_conf = self._rr_estimator.estimate(rr_filtered)
-		result.respiratory_rate_bpm = rr
-		result.respiratory_rate_confidence = rr_conf
+		# Use enhanced estimation with quality metrics
+		hr_result = self._hr_estimator.estimate_with_quality(hr_filtered)
+		result.heart_rate_bpm = hr_result.rate_bpm
+		result.heart_rate_confidence = hr_result.confidence
+		result.hr_snr_db = hr_result.snr_db
 
-		result.signal_quality = (hr_conf + rr_conf) / 2
+		rr_result = self._rr_estimator.estimate_with_quality(rr_filtered)
+		result.respiratory_rate_bpm = rr_result.rate_bpm
+		result.respiratory_rate_confidence = rr_result.confidence
+		result.rr_snr_db = rr_result.snr_db
+
+		# Combine confidences with SNR weighting for overall quality
+		base_quality = (hr_result.confidence + rr_result.confidence) / 2
+		# Boost quality if SNR is good
+		snr_bonus = min(0.1, hr_result.snr_db / 100) if hr_result.snr_db > 0 else 0
+		result.signal_quality = min(1.0, base_quality + snr_bonus)
 		return result
 
 	def process_frame(self, frame: RadarFrame) -> VitalSigns | None:

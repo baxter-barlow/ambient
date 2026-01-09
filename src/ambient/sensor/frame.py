@@ -233,11 +233,21 @@ class ChirpPhaseOutput:
 			return None
 
 	def get_center_phase(self) -> float | None:
-		"""Get phase of center bin if valid."""
+		"""Get phase of center bin if valid.
+
+		Returns the phase from the center bin if found and valid.
+		Falls back to the first valid bin if center bin not found.
+		Returns None if no valid bins exist.
+		"""
+		# First try to find the center bin
 		for b in self.bins:
 			if b.bin_index == self.center_bin and b.is_valid:
 				return b.phase
-		return self.bins[0].phase if self.bins else None
+		# Fall back to first valid bin
+		for b in self.bins:
+			if b.is_valid:
+				return b.phase
+		return None
 
 
 @dataclass
@@ -583,6 +593,7 @@ class FrameBuffer:
 			num_detected_obj=fields[13],
 			num_tlvs=fields[14],
 			subframe_number=fields[15] if len(fields) > 15 else 0,
+			_raw_data=data[:8],  # Store magic word for validation
 		)
 
 	def _parse_frame(self, header: FrameHeader, data: bytes) -> RadarFrame:

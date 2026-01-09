@@ -74,6 +74,7 @@ class ProcessingPipeline:
 			timestamp=frame.timestamp,
 		)
 
+		targets: list[float] = []
 		if frame.range_profile is not None:
 			result.range_profile = frame.range_profile
 			filtered = self._clutter.process(frame.range_profile)
@@ -85,6 +86,9 @@ class ProcessingPipeline:
 			if self.config.phase_extraction and targets:
 				result.phase_data = self._extract_phase(frame.range_profile, targets[0])
 				result.target_range_bin = self._target_bin
+			elif self.config.phase_extraction and not targets:
+				# Reset target bin when no targets detected
+				self._target_bin = None
 
 		if frame.range_doppler_heatmap is not None:
 			result.range_doppler_map = frame.range_doppler_heatmap
@@ -151,27 +155,3 @@ class ProcessingPipeline:
 		logger.info("pipeline_config_updated", **kwargs)
 
 
-class PhaseUnwrapper:
-	"""Unwrap phase discontinuities for continuous tracking."""
-
-	def __init__(self) -> None:
-		self._last_phase: float | None = None
-		self._offset = 0.0
-
-	def process(self, phase: float) -> float:
-		if self._last_phase is None:
-			self._last_phase = phase
-			return phase
-
-		diff = phase - self._last_phase
-		if diff > np.pi:
-			self._offset -= 2 * np.pi
-		elif diff < -np.pi:
-			self._offset += 2 * np.pi
-
-		self._last_phase = phase
-		return phase + self._offset
-
-	def reset(self) -> None:
-		self._last_phase = None
-		self._offset = 0.0

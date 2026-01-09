@@ -2,12 +2,24 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import structlog
 from numpy.typing import NDArray
 from scipy import signal as sp_signal
 
 logger = structlog.get_logger(__name__)
+
+
+@dataclass
+class RREstimationResult:
+	"""Result from respiratory rate estimation with quality metrics."""
+	rate_bpm: float | None
+	confidence: float
+	snr_db: float = 0.0
+	spectral_purity: float = 0.0
+	peak_prominence: float = 0.0
 
 
 class RespiratoryRateEstimator:
@@ -29,8 +41,13 @@ class RespiratoryRateEstimator:
 
 	def estimate(self, signal: NDArray[np.float32]) -> tuple[float | None, float]:
 		"""Returns (respiratory_rate_bpm, confidence)."""
+		result = self.estimate_with_quality(signal)
+		return result.rate_bpm, result.confidence
+
+	def estimate_with_quality(self, signal: NDArray[np.float32]) -> RREstimationResult:
+		"""Returns RREstimationResult with rate and quality metrics."""
 		if len(signal) < 20:
-			return None, 0.0
+			return RREstimationResult(rate_bpm=None, confidence=0.0)
 
 		n_fft = len(signal) * self.fft_padding_factor
 		fft_result = np.fft.rfft(signal, n=n_fft)
@@ -42,7 +59,7 @@ class RespiratoryRateEstimator:
 		band_magnitude = magnitude[freq_mask]
 
 		if len(band_magnitude) == 0:
-			return None, 0.0
+			return RREstimationResult(rate_bpm=None, confidence=0.0)
 
 		peak_idx = np.argmax(band_magnitude)
 		peak_freq = band_freqs[peak_idx]
@@ -50,8 +67,28 @@ class RespiratoryRateEstimator:
 
 		rr_bpm = peak_freq * 60.0
 
+		# Calculate quality metrics
 		mean_mag = np.mean(band_magnitude)
+		median_mag = np.median(band_magnitude)
+
+		# SNR: peak power vs noise floor
+		noise_floor = np.percentile(band_magnitude, 25)
+		snr_db = 20 * np.log10(peak_mag / noise_floor) if noise_floor > 0 else 0.0
+
+		# Spectral purity: energy concentration at peak
+		total_energy = np.sum(band_magnitude ** 2)
+		peak_energy = peak_mag ** 2
+		spectral_purity = peak_energy / total_energy if total_energy > 0 else 0.0
+
+		# Peak prominence
+		peak_prominence = (peak_mag / median_mag - 1) if median_mag > 0 else 0.0
+
+		# Confidence calculation
 		confidence = min(1.0, (peak_mag / mean_mag - 1) / 3.0) if mean_mag > 0 else 0.0
+
+		# Boost confidence if SNR is good
+		if snr_db > 10:
+			confidence = min(1.0, confidence * 1.2)
 
 		if self._last_rr is not None and abs(rr_bpm - self._last_rr) > 10:
 			confidence *= 0.5
@@ -61,7 +98,13 @@ class RespiratoryRateEstimator:
 		if len(self._rr_history) > 10:
 			self._rr_history = self._rr_history[-10:]
 
-		return rr_bpm, confidence
+		return RREstimationResult(
+			rate_bpm=rr_bpm,
+			confidence=confidence,
+			snr_db=snr_db,
+			spectral_purity=spectral_purity,
+			peak_prominence=peak_prominence,
+		)
 
 	def estimate_with_peak_counting(self, signal: NDArray[np.float32]) -> tuple[float | None, float]:
 		"""Alternative peak-counting method."""

@@ -175,3 +175,45 @@ async def get_firmware_info():
 		return device.sensor.detect_firmware()
 	except Exception as e:
 		raise HTTPException(status_code=500, detail=f"Failed to detect firmware: {e}")
+
+
+@router.get("/metrics")
+async def get_performance_metrics():
+	"""Get performance profiling metrics including latency and queue stats.
+
+	Returns:
+		- timing: Latency stats (mean, p50, p95, p99) for pipeline stages
+		- queues: Queue depth and drop stats for each queue
+		- frames: Total frame count and dropped frames
+	"""
+	from ambient.utils.profiler import get_profiler
+
+	profiler = get_profiler()
+	stats = profiler.get_stats()
+
+	# Also get WebSocket manager stats
+	from ..ws.manager import get_ws_manager
+
+	manager = get_ws_manager()
+	ws_stats = manager.get_all_metrics() if manager else {}
+
+	return {
+		"enabled": profiler.enabled,
+		"frame_count": stats.get("frame_count", 0),
+		"sampled_count": stats.get("sampled_count", 0),
+		"dropped_frames": stats.get("dropped_frames", 0),
+		"sample_rate": stats.get("sample_rate", 1.0),
+		"timing": stats.get("timing", {}),
+		"queues": stats.get("queues", {}),
+		"websocket": ws_stats,
+	}
+
+
+@router.post("/metrics/reset")
+async def reset_metrics():
+	"""Reset all performance metrics."""
+	from ambient.utils.profiler import get_profiler
+
+	profiler = get_profiler()
+	profiler.reset()
+	return {"status": "ok", "message": "Metrics reset"}

@@ -41,7 +41,7 @@ class PortVerifyRequest(BaseModel):
 
 class PortStatus(BaseModel):
 	path: str
-	status: str  # ok, warning, error
+	status: str  # ok, warning, error, unknown
 	details: str
 
 
@@ -83,6 +83,7 @@ class VitalSigns(BaseModel):
 	source: str = "estimated"  # "firmware", "estimated", or "chirp"
 	breathing_waveform: list[float] | None = None
 	heart_waveform: list[float] | None = None
+	phase_signal: list[float] | None = None  # Raw phase signal for visualization
 	unwrapped_phase: float | None = None
 	# Enhanced quality metrics
 	hr_snr_db: float = 0.0
