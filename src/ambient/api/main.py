@@ -30,6 +30,18 @@ async def lifespan(app: FastAPI):
 	"""Application lifespan handler."""
 	logger.info("Starting ambient dashboard API")
 
+	# Apply streaming config from AppConfig to the WebSocket manager
+	from ambient.config import get_config
+	config = get_config()
+	manager.configure(
+		max_queue_size=config.streaming.max_queue_size,
+		drop_policy=config.streaming.drop_policy,
+		max_payload_kb=config.streaming.max_payload_kb,
+	)
+
+	# Start WebSocket manager with background workers
+	await manager.start()
+
 	# Set up log handler for WebSocket streaming
 	setup_log_handler()
 
@@ -71,6 +83,7 @@ async def lifespan(app: FastAPI):
 	# Cleanup
 	logger.info("Shutting down ambient dashboard API")
 	await state.device.disconnect()
+	await manager.stop()
 
 
 app = FastAPI(
@@ -116,6 +129,33 @@ async def health():
 		"status": "healthy",
 		"device_state": state.device.state.value,
 		"recording": state.recording.is_recording,
+	}
+
+
+@app.get("/api/metrics")
+async def metrics():
+	"""Get system metrics for observability."""
+	from ambient.utils.profiler import get_profiler
+
+	state = get_app_state()
+	profiler = get_profiler()
+	device_status = state.device.get_status()
+
+	return {
+		"device": {
+			"state": device_status.state.value,
+			"frame_rate": device_status.frame_rate,
+			"frame_count": device_status.frame_count,
+			"dropped_frames": device_status.dropped_frames,
+			"buffer_usage": device_status.buffer_usage,
+		},
+		"recording": {
+			"is_recording": state.recording.is_recording,
+			"frame_count": state.recording.get_status().frame_count,
+			"duration": state.recording.get_status().duration,
+		},
+		"websocket": manager.get_all_metrics(),
+		"profiler": profiler.get_stats(),
 	}
 
 

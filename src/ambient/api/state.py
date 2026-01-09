@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from collections import deque
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
 from typing import TYPE_CHECKING
@@ -21,9 +23,72 @@ if TYPE_CHECKING:
 	from ambient.processing.pipeline import ProcessingPipeline
 	from ambient.sensor.radar import RadarSensor
 	from ambient.storage.writer import HDF5Writer, ParquetWriter
-	from ambient.vitals.extractor import VitalsExtractor
+	from ambient.vitals.extractor import ChirpVitalsProcessor, VitalsExtractor
 
 logger = logging.getLogger(__name__)
+
+
+# Chirp firmware detection patterns
+CHIRP_DETECTION_PATTERNS = [
+	r"Chirp Status",
+	r"Output mode",
+	r"chirp:",
+	r"PHASE",
+	r"target detection",
+]
+
+
+@dataclass
+class ChirpDetectionResult:
+	"""Result of chirp firmware detection."""
+	is_chirp: bool
+	response: str
+	matched_pattern: str | None = None
+	error: str | None = None
+
+
+def detect_chirp_firmware(response: str) -> ChirpDetectionResult:
+	"""Detect if response indicates chirp firmware.
+
+	Args:
+		response: Response string from 'chirp status' command
+
+	Returns:
+		ChirpDetectionResult with detection outcome
+	"""
+	if not response:
+		return ChirpDetectionResult(
+			is_chirp=False,
+			response=response,
+			error="Empty response"
+		)
+
+	response_lower = response.lower()
+
+	# Check for error responses that indicate standard firmware
+	error_patterns = ["error", "unknown command", "invalid", "not found"]
+	for pattern in error_patterns:
+		if pattern in response_lower:
+			return ChirpDetectionResult(
+				is_chirp=False,
+				response=response,
+				error=f"Error response: {pattern}"
+			)
+
+	# Check for chirp-specific patterns
+	for pattern in CHIRP_DETECTION_PATTERNS:
+		if re.search(pattern, response, re.IGNORECASE):
+			return ChirpDetectionResult(
+				is_chirp=True,
+				response=response,
+				matched_pattern=pattern
+			)
+
+	return ChirpDetectionResult(
+		is_chirp=False,
+		response=response,
+		error="No chirp patterns matched"
+	)
 
 
 class DeviceStateMachine:
@@ -42,7 +107,7 @@ class DeviceStateMachine:
 		self._lock = Lock()
 		self._sensor: RadarSensor | None = None
 		self._pipeline: ProcessingPipeline | None = None
-		self._extractor: VitalsExtractor | None = None
+		self._extractor: VitalsExtractor | ChirpVitalsProcessor | None = None
 		self._cli_port: str | None = None
 		self._data_port: str | None = None
 		self._config_name: str | None = None
@@ -67,7 +132,7 @@ class DeviceStateMachine:
 		return self._pipeline
 
 	@property
-	def extractor(self) -> VitalsExtractor | None:
+	def extractor(self) -> VitalsExtractor | ChirpVitalsProcessor | None:
 		return self._extractor
 
 	def _transition(self, new_state: DeviceState) -> bool:
@@ -126,7 +191,7 @@ class DeviceStateMachine:
 			from ambient.processing.pipeline import ProcessingPipeline
 			from ambient.sensor.config import SerialConfig
 			from ambient.sensor.radar import RadarSensor
-			from ambient.vitals.extractor import VitalsExtractor, ChirpVitalsProcessor
+			from ambient.vitals.extractor import ChirpVitalsProcessor, VitalsExtractor
 
 			self._cli_port = cli_port
 			self._data_port = data_port
@@ -161,23 +226,36 @@ class DeviceStateMachine:
 
 			# Configure chirp firmware if enabled
 			if chirp_mode:
-				try:
-					# Check if chirp firmware is present
-					response = self._sensor.send_command("chirp status", timeout=0.2)
-					if "Chirp Status" in response or "Output mode" in response:
-						logger.info("Chirp firmware detected, configuring PHASE mode")
-						# Configure target detection (sensitive settings)
-						self._sensor.send_command("chirp target 0.2 5.0 5 4", timeout=0.2)
-						# Enable PHASE output with motion and target info
-						self._sensor.send_command("chirp mode 3 1 1", timeout=0.2)
-						# Use ChirpVitalsProcessor for chirp PHASE data
-						self._extractor = ChirpVitalsProcessor()
-					else:
-						logger.info("Standard firmware detected")
-						self._extractor = VitalsExtractor()
-				except Exception as e:
-					logger.warning(f"Chirp detection failed, using standard mode: {e}")
+				from ambient.config import get_config
+				chirp_config = get_config().chirp
+
+				if not chirp_config.enabled:
+					logger.info("Chirp mode disabled by configuration")
 					self._extractor = VitalsExtractor()
+				else:
+					try:
+						# Check if chirp firmware is present
+						timeout = chirp_config.detection_timeout_s
+						response = self._sensor.send_command("chirp status", timeout=timeout)
+						detection = detect_chirp_firmware(response)
+
+						if detection.is_chirp:
+							logger.info(
+								f"Chirp firmware detected (pattern: {detection.matched_pattern}), "
+								"configuring PHASE mode"
+							)
+							# Apply chirp configuration commands
+							for cmd in chirp_config.to_commands():
+								self._sensor.send_command(cmd, timeout=timeout)
+							# Use ChirpVitalsProcessor for chirp PHASE data
+							self._extractor = ChirpVitalsProcessor()
+						else:
+							reason = detection.error or "no chirp patterns matched"
+							logger.info(f"Standard firmware detected ({reason})")
+							self._extractor = VitalsExtractor()
+					except Exception as e:
+						logger.warning(f"Chirp detection failed, using standard mode: {e}")
+						self._extractor = VitalsExtractor()
 			else:
 				self._extractor = VitalsExtractor()
 

@@ -4,21 +4,80 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import numpy as np
+
+from ambient.utils.profiler import get_profiler
+from ambient.vitals.extractor import ChirpVitalsProcessor
 from ambient.vitals.extractor import VitalSigns as VitalSignsData
 
 from .schemas import DetectedPoint, VitalSigns
 
 if TYPE_CHECKING:
+	from numpy.typing import NDArray
+
 	from .state import AppState
 	from .ws.manager import ConnectionManager
 
 logger = logging.getLogger(__name__)
 
 
-def frame_to_dict(frame, processed=None) -> dict:
-	"""Convert RadarFrame to serializable dict."""
+@dataclass
+class StreamingConfig:
+	"""Configuration for streaming behavior."""
+
+	max_heatmap_size: int = 64  # Max rows/cols for range_doppler
+	max_waveform_samples: int = 200  # Max samples for waveforms
+	max_phase_signal_samples: int = 200  # Max samples for phase_signal
+	vitals_interval_hz: float = 1.0  # Vitals broadcast rate
+	include_range_doppler: bool = True  # Include range_doppler in frames
+	include_waveforms: bool = True  # Include waveforms in vitals
+
+
+def _init_streaming_config() -> StreamingConfig:
+	"""Initialize streaming config from AppConfig."""
+	from ambient.config import get_config
+	app_config = get_config()
+	return StreamingConfig(
+		max_heatmap_size=app_config.streaming.max_heatmap_size,
+		max_waveform_samples=app_config.streaming.max_waveform_samples,
+		max_phase_signal_samples=app_config.streaming.max_phase_signal_samples,
+		vitals_interval_hz=app_config.streaming.vitals_interval_hz,
+		include_range_doppler=app_config.streaming.include_range_doppler,
+		include_waveforms=app_config.streaming.include_waveforms,
+	)
+
+
+# Global streaming config (initialized from AppConfig)
+streaming_config = _init_streaming_config()
+
+
+def downsample_array(arr: NDArray, max_samples: int) -> NDArray:
+	"""Downsample 1D array to max_samples using decimation."""
+	if len(arr) <= max_samples:
+		return arr
+	step = len(arr) // max_samples
+	return arr[::step][:max_samples]
+
+
+def downsample_heatmap(heatmap: NDArray, max_size: int) -> NDArray:
+	"""Downsample 2D heatmap to max_size x max_size."""
+	result = heatmap
+	if result.shape[0] > max_size:
+		step = result.shape[0] // max_size
+		result = result[::step, :]
+	if result.shape[1] > max_size:
+		step = result.shape[1] // max_size
+		result = result[:, ::step]
+	return result[:max_size, :max_size]
+
+
+def frame_to_dict(frame, processed=None, config: StreamingConfig | None = None) -> dict:
+	"""Convert RadarFrame to serializable dict with size limiting."""
+	cfg = config or streaming_config
+
 	detected = []
 	for pt in frame.detected_points:
 		detected.append(DetectedPoint(
@@ -36,13 +95,9 @@ def frame_to_dict(frame, processed=None) -> dict:
 		"detected_points": detected,
 	}
 
-	if frame.range_doppler_heatmap is not None:
-		# Downsample if too large
-		heatmap = frame.range_doppler_heatmap
-		if heatmap.shape[0] > 64:
-			heatmap = heatmap[::heatmap.shape[0]//64, :]
-		if heatmap.shape[1] > 64:
-			heatmap = heatmap[:, ::heatmap.shape[1]//64]
+	# Include range_doppler with size limiting
+	if cfg.include_range_doppler and frame.range_doppler_heatmap is not None:
+		heatmap = downsample_heatmap(frame.range_doppler_heatmap, cfg.max_heatmap_size)
 		result["range_doppler"] = heatmap.tolist()
 
 	if processed and processed.phase_data is not None:
@@ -56,8 +111,10 @@ def frame_to_dict(frame, processed=None) -> dict:
 	return result
 
 
-def vitals_to_dict(vitals) -> dict:
-	"""Convert VitalSigns to serializable dict."""
+def vitals_to_dict(vitals, config: StreamingConfig | None = None) -> dict:
+	"""Convert VitalSigns to serializable dict with size limiting."""
+	cfg = config or streaming_config
+
 	result = VitalSigns(
 		heart_rate_bpm=vitals.heart_rate_bpm,
 		heart_rate_confidence=vitals.heart_rate_confidence,
@@ -72,11 +129,21 @@ def vitals_to_dict(vitals) -> dict:
 		rr_snr_db=getattr(vitals, 'rr_snr_db', 0.0),
 		phase_stability=getattr(vitals, 'phase_stability', 0.0),
 	)
-	# Add waveforms if available
-	if vitals.respiratory_waveform is not None:
-		result.breathing_waveform = vitals.respiratory_waveform.tolist()
-	if vitals.heart_rate_waveform is not None:
-		result.heart_waveform = vitals.heart_rate_waveform.tolist()
+
+	# Add waveforms with size limiting if enabled
+	if cfg.include_waveforms:
+		if vitals.respiratory_waveform is not None:
+			waveform = downsample_array(vitals.respiratory_waveform, cfg.max_waveform_samples)
+			result.breathing_waveform = waveform.tolist()
+		if vitals.heart_rate_waveform is not None:
+			waveform = downsample_array(vitals.heart_rate_waveform, cfg.max_waveform_samples)
+			result.heart_waveform = waveform.tolist()
+
+	# Add phase signal with size limiting
+	if vitals.phase_signal is not None:
+		phase_sig = downsample_array(vitals.phase_signal, cfg.max_phase_signal_samples)
+		result.phase_signal = phase_sig.tolist()
+
 	return result.model_dump()
 
 
@@ -92,9 +159,13 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 		return
 
 	last_vitals_broadcast = 0.0
-	vitals_interval = 1.0  # Broadcast vitals at 1 Hz
+	vitals_interval = 1.0 / streaming_config.vitals_interval_hz
+	profiler = get_profiler()
 
-	logger.info("Starting acquisition loop")
+	logger.info(
+		f"Starting acquisition loop (vitals_interval={vitals_interval:.2f}s, "
+		f"max_heatmap={streaming_config.max_heatmap_size})"
+	)
 
 	try:
 		while device.state.value == "streaming":
@@ -105,40 +176,52 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 					continue
 
 				device.record_frame()
+				profiler.frame_start()
 
 				# Process frame
-				processed = pipeline.process(frame)
+				with profiler.measure("pipeline"):
+					processed = pipeline.process(frame)
 
 				# Use firmware vital signs if available, otherwise fall back to estimation
-				if frame.vital_signs is not None:
-					vitals = VitalSignsData.from_firmware(frame.vital_signs, frame.timestamp)
-				else:
-					vitals = extractor.process_frame(processed)
+				vitals: VitalSignsData | None = None
+				with profiler.measure("vitals"):
+					if frame.vital_signs is not None:
+						vitals = VitalSignsData.from_firmware(frame.vital_signs, frame.timestamp)
+					elif frame.chirp_phase is not None and isinstance(extractor, ChirpVitalsProcessor):
+						# ChirpVitalsProcessor expects RadarFrame, not ProcessedFrame
+						vitals = extractor.process_frame(frame)
+					else:
+						# VitalsExtractor expects ProcessedFrame
+						vitals = extractor.process_frame(processed)
 
 				# Write to recording if active
-				if state.recording.is_recording:
-					state.recording.write_frame(frame)
-					if vitals and vitals.is_valid():
-						state.recording.write_vitals(vitals)
+				with profiler.measure("recording"):
+					if state.recording.is_recording:
+						state.recording.write_frame(frame)
+						if vitals and vitals.is_valid():
+							state.recording.write_vitals(vitals)
 
 				# Broadcast frame data
-				frame_msg = {
-					"type": "sensor_frame",
-					"timestamp": time.time(),
-					"payload": frame_to_dict(frame, processed),
-				}
-				await ws_manager.broadcast("sensor", frame_msg)
-
-				# Broadcast vitals at lower rate
-				now = time.time()
-				if vitals and (now - last_vitals_broadcast) >= vitals_interval:
-					vitals_msg = {
-						"type": "vitals",
-						"timestamp": now,
-						"payload": vitals_to_dict(vitals),
+				with profiler.measure("broadcast"):
+					frame_msg = {
+						"type": "sensor_frame",
+						"timestamp": time.time(),
+						"payload": frame_to_dict(frame, processed),
 					}
-					await ws_manager.broadcast("sensor", vitals_msg)
-					last_vitals_broadcast = now
+					await ws_manager.broadcast("sensor", frame_msg)
+
+					# Broadcast vitals at lower rate
+					now = time.time()
+					if vitals and (now - last_vitals_broadcast) >= vitals_interval:
+						vitals_msg = {
+							"type": "vitals",
+							"timestamp": now,
+							"payload": vitals_to_dict(vitals),
+						}
+						await ws_manager.broadcast("sensor", vitals_msg)
+						last_vitals_broadcast = now
+
+				profiler.frame_complete()
 
 				# Yield to event loop
 				await asyncio.sleep(0)

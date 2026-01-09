@@ -157,6 +157,7 @@ async def flash_config(profile_name: str = "default"):
 	if sensor:
 		sensor.send_command("sensorStop")
 		sensor.configure(chirp_config)
+		sensor.send_command("sensorStart")
 		state.device._config_name = profile_name
 
 	return {"status": "ok", "profile": profile_name}
@@ -169,4 +170,56 @@ async def get_current_config():
 	return {
 		"profile_name": state.device._config_name or "default",
 		"state": state.device.state.value,
+	}
+
+
+@router.get("/validate")
+async def validate_config():
+	"""Validate the current application configuration.
+
+	Returns validation errors if any config values are invalid.
+	Useful for checking config before starting services.
+	"""
+	from ambient.config import get_config
+
+	config = get_config()
+	errors = config.validate()
+
+	return {
+		"valid": len(errors) == 0,
+		"errors": errors,
+		"config": {
+			"sensor": {
+				"cli_port": config.sensor.cli_port,
+				"data_port": config.sensor.data_port,
+				"cli_baud": config.sensor.cli_baud,
+				"data_baud": config.sensor.data_baud,
+				"auto_reconnect": config.sensor.auto_reconnect,
+			},
+			"api": {
+				"host": config.api.host,
+				"port": config.api.port,
+				"log_level": config.api.log_level,
+			},
+			"streaming": {
+				"max_queue_size": config.streaming.max_queue_size,
+				"drop_policy": config.streaming.drop_policy,
+				"max_heatmap_size": config.streaming.max_heatmap_size,
+				"max_waveform_samples": config.streaming.max_waveform_samples,
+				"vitals_interval_hz": config.streaming.vitals_interval_hz,
+				"include_range_doppler": config.streaming.include_range_doppler,
+				"include_waveforms": config.streaming.include_waveforms,
+			},
+			"performance": {
+				"enabled": config.performance.enabled,
+				"log_interval_frames": config.performance.log_interval_frames,
+				"sample_rate": config.performance.sample_rate,
+			},
+			"chirp": {
+				"enabled": config.chirp.enabled,
+				"target_range_min_m": config.chirp.target_range_min_m,
+				"target_range_max_m": config.chirp.target_range_max_m,
+				"output_mode": config.chirp.output_mode,
+			},
+		},
 	}
