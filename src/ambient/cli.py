@@ -222,48 +222,64 @@ def info(cli_port: str, data_port: str) -> None:
 @click.option("--data-port", default="/dev/ttyUSB1", help="Data serial port")
 def status(cli_port: str, data_port: str) -> None:
 	"""Quick device status check."""
-	from ambient.sensor import RadarSensor
-	from ambient.sensor.config import SerialConfig
+	import serial
 	from ambient.api.state import detect_chirp_firmware
 	from pathlib import Path
 
-	# Check if ports exist
 	cli_exists = Path(cli_port).exists()
 	data_exists = Path(data_port).exists()
 
-	if not cli_exists or not data_exists:
-		console.print(f"[red]Disconnected[/] - ports not found")
-		if not cli_exists:
-			console.print(f"  CLI port missing: {cli_port}")
-		if not data_exists:
-			console.print(f"  Data port missing: {data_port}")
+	if not cli_exists:
+		console.print(f"[red]Disconnected[/] - CLI port not found: {cli_port}")
 		sys.exit(1)
 
-	sensor = RadarSensor(SerialConfig(cli_port=cli_port, data_port=data_port))
-
 	try:
-		sensor.connect()
+		ser = serial.Serial(cli_port, 115200, timeout=1.0)
 
-		# Get firmware info
-		fw_info = sensor.detect_firmware()
-		fw_type = fw_info.get("type", "unknown")
-		fw_version = fw_info.get("version", "N/A")
+		# Query version
+		ser.write(b"version\n")
+		time.sleep(0.3)
+		version_resp = ser.read(ser.in_waiting or 500).decode(errors="ignore")
+
+		# Detect firmware type from version response
+		fw_type = "unknown"
+		fw_version = None
+		if "vital" in version_resp.lower():
+			fw_type = "vital_signs"
+		elif "oob" in version_resp.lower() or "out of box" in version_resp.lower():
+			fw_type = "oob_demo"
+		elif "mmwave" in version_resp.lower():
+			fw_type = "oob_demo"
+
+		# Extract version number
+		import re
+		ver_match = re.search(r"(\d+\.\d+\.\d+\.\d+)", version_resp)
+		if ver_match:
+			fw_version = ver_match.group(1)
 
 		# Check for chirp mode
-		chirp_response = sensor.send_command("chirp status", timeout=0.5)
-		chirp_result = detect_chirp_firmware(chirp_response)
+		ser.write(b"chirp status\n")
+		time.sleep(0.3)
+		chirp_resp = ser.read(ser.in_waiting or 500).decode(errors="ignore")
+		chirp_result = detect_chirp_firmware(chirp_resp)
 
-		# Build status line
+		ser.close()
+
 		mode = "chirp" if chirp_result.is_chirp else "standard"
 		console.print(f"[green]Connected[/] - {fw_type} ({mode} mode)")
-		console.print(f"  Version: {fw_version}")
-		console.print(f"  Ports: {cli_port}, {data_port}")
+		console.print(f"  Version: {fw_version or 'N/A'}")
+		if data_exists:
+			console.print(f"  Ports: {cli_port}, {data_port}")
+		else:
+			console.print(f"  CLI port: {cli_port}")
+			console.print(f"  [yellow]Data port not found: {data_port}[/]")
 
+	except serial.SerialException as e:
+		console.print(f"[red]Error[/] - Cannot open CLI port: {e}")
+		sys.exit(1)
 	except Exception as e:
 		console.print(f"[red]Error[/] - {e}")
 		sys.exit(1)
-	finally:
-		sensor.disconnect()
 
 
 @main.group()

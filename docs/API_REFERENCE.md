@@ -38,23 +38,30 @@ Returns:
 
 ### `ambient status`
 
-Quick device status check.
+Quick device status check. Only requires CLI port; data port is optional.
 
 ```bash
 ambient status [--cli-port PORT] [--data-port PORT]
 ```
 
-Example output (device connected):
+Example output (both ports present):
 ```
 Connected - vital_signs (chirp mode)
   Version: 3.5.0.4
   Ports: /dev/ttyUSB0, /dev/ttyUSB1
 ```
 
-Example output (device disconnected):
+Example output (CLI only, data port missing):
 ```
-Disconnected - ports not found
-  CLI port missing: /dev/ttyUSB0
+Connected - oob_demo (standard mode)
+  Version: 03.06.02.00
+  CLI port: /dev/ttyUSB0
+  Data port not found: /dev/ttyUSB1
+```
+
+Example output (CLI port missing):
+```
+Disconnected - CLI port not found: /dev/ttyUSB0
 ```
 
 ### `ambient capture`
