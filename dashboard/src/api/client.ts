@@ -35,6 +35,8 @@ export const deviceApi = {
 		request<import('../types').DeviceStatus>('/device/disconnect', { method: 'POST' }),
 	stop: () =>
 		request<import('../types').DeviceStatus>('/device/stop', { method: 'POST' }),
+	getMetrics: () => request<import('../types').PerformanceMetrics>('/device/metrics'),
+	resetMetrics: () => request('/device/metrics/reset', { method: 'POST' }),
 }
 
 // Recording endpoints

@@ -1,6 +1,18 @@
 import { create } from 'zustand'
 import type { DeviceStatus, SensorFrame, VitalSigns, LogEntry } from '../types'
 
+// Extended history entry with quality metrics
+interface VitalsHistoryEntry {
+	timestamp: number
+	hr: number | null
+	rr: number | null
+	hr_snr_db: number
+	rr_snr_db: number
+	phase_stability: number
+	signal_quality: number
+	source: string
+}
+
 interface AppState {
 	// Device state
 	deviceStatus: DeviceStatus | null
@@ -14,8 +26,9 @@ interface AppState {
 
 	// Vitals
 	vitals: VitalSigns | null
-	vitalsHistory: { timestamp: number; hr: number | null; rr: number | null }[]
+	vitalsHistory: VitalsHistoryEntry[]
 	setVitals: (vitals: VitalSigns) => void
+	clearVitalsHistory: () => void
 
 	// UI state
 	isPaused: boolean
@@ -51,21 +64,32 @@ export const useAppStore = create<AppState>((set) => ({
 	}),
 	clearFrames: () => set({ sensorFrames: [] }),
 
-	// Vitals
+	// Vitals with extended history tracking
 	vitals: null,
 	vitalsHistory: [],
 	setVitals: (vitals) => set((state) => {
 		if (state.isPaused) return { vitals }
-		const history = [...state.vitalsHistory, {
+
+		const entry: VitalsHistoryEntry = {
 			timestamp: Date.now() / 1000,
 			hr: vitals.heart_rate_bpm,
 			rr: vitals.respiratory_rate_bpm,
-		}]
+			hr_snr_db: vitals.hr_snr_db ?? 0,
+			rr_snr_db: vitals.rr_snr_db ?? 0,
+			phase_stability: vitals.phase_stability ?? 0,
+			signal_quality: vitals.signal_quality,
+			source: vitals.source,
+		}
+
+		const history = [...state.vitalsHistory, entry]
+
 		// Keep 5 minutes of history
 		const cutoff = Date.now() / 1000 - 300
 		const filtered = history.filter(h => h.timestamp > cutoff)
+
 		return { vitals, vitalsHistory: filtered }
 	}),
+	clearVitalsHistory: () => set({ vitalsHistory: [] }),
 
 	// UI
 	isPaused: false,

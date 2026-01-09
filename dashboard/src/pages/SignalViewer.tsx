@@ -3,6 +3,7 @@ import { useAppStore } from '../stores/appStore'
 import RangeProfile from '../components/charts/RangeProfile'
 import PhaseSignal from '../components/charts/PhaseSignal'
 import VitalsChart from '../components/charts/VitalsChart'
+import QualityMetricsChart from '../components/charts/QualityMetricsChart'
 import RangeDoppler from '../components/charts/RangeDoppler'
 import WaveformChart from '../components/charts/WaveformChart'
 import Button from '../components/common/Button'
@@ -48,7 +49,41 @@ export default function SignalViewer() {
 		}
 	}, [vitalsHistory, timeWindow])
 
+	// Quality metrics data for trending chart
+	const qualityData = useMemo(() => {
+		const now = Date.now() / 1000
+		const cutoff = now - timeWindow
+		const filtered = vitalsHistory.filter(v => v.timestamp > cutoff)
+		return {
+			timestamps: filtered.map(v => v.timestamp),
+			hrSnrDb: filtered.map(v => v.hr_snr_db),
+			rrSnrDb: filtered.map(v => v.rr_snr_db),
+			phaseStability: filtered.map(v => v.phase_stability),
+			signalQuality: filtered.map(v => v.signal_quality),
+		}
+	}, [vitalsHistory, timeWindow])
+
 	const isStreaming = deviceStatus?.state === 'streaming'
+
+	// Calculate stability percentage for progress bar (inverse - lower is better)
+	const stabilityPercent = vitals?.phase_stability !== undefined
+		? Math.max(0, Math.min(100, (1 - vitals.phase_stability / 2) * 100))
+		: 50
+
+	// Get stability color based on value
+	const getStabilityColor = (val: number | undefined) => {
+		if (val === undefined) return 'bg-text-tertiary'
+		if (val < 0.5) return 'bg-accent-green'
+		if (val < 1.0) return 'bg-accent-amber'
+		return 'bg-accent-red'
+	}
+
+	// Get signal quality color
+	const getQualityColor = (val: number) => {
+		if (val >= 0.7) return 'text-accent-green'
+		if (val >= 0.4) return 'text-accent-amber'
+		return 'text-accent-red'
+	}
 
 	return (
 		<div className="space-y-5">
@@ -111,12 +146,15 @@ export default function SignalViewer() {
 							'px-2 py-0.5 rounded text-micro font-semibold uppercase tracking-wide',
 							vitals.source === 'firmware'
 								? 'bg-accent-green/15 text-accent-green border border-accent-green/25'
+								: vitals.source === 'chirp'
+								? 'bg-accent-teal/15 text-accent-teal border border-accent-teal/25'
 								: 'bg-accent-amber/15 text-accent-amber border border-accent-amber/25'
 						)}>
-							{vitals.source === 'firmware' ? 'Firmware' : 'Estimated'}
+							{vitals.source === 'firmware' ? 'Firmware' : vitals.source === 'chirp' ? 'Chirp' : 'Estimated'}
 						</span>
 					</div>
 					<div className="p-4">
+						{/* Primary Vitals Row */}
 						<div className="grid grid-cols-4 gap-6">
 							{/* Heart Rate */}
 							<div>
@@ -132,7 +170,12 @@ export default function SignalViewer() {
 									/>
 								</div>
 								<span className="text-xs font-mono text-text-tertiary">
-									{(vitals.heart_rate_confidence * 100).toFixed(0)}% confidence
+									{(vitals.heart_rate_confidence * 100).toFixed(0)}% conf
+									{vitals.hr_snr_db !== undefined && vitals.hr_snr_db > 0 && (
+										<span className="ml-1.5 text-accent-teal">
+											{vitals.hr_snr_db.toFixed(1)} dB
+										</span>
+									)}
 								</span>
 							</div>
 
@@ -150,32 +193,72 @@ export default function SignalViewer() {
 									/>
 								</div>
 								<span className="text-xs font-mono text-text-tertiary">
-									{(vitals.respiratory_rate_confidence * 100).toFixed(0)}% confidence
+									{(vitals.respiratory_rate_confidence * 100).toFixed(0)}% conf
+									{vitals.rr_snr_db !== undefined && vitals.rr_snr_db > 0 && (
+										<span className="ml-1.5 text-accent-teal">
+											{vitals.rr_snr_db.toFixed(1)} dB
+										</span>
+									)}
 								</span>
 							</div>
 
-							{/* Signal Quality */}
+							{/* Signal Quality - Enhanced */}
 							<div>
 								<span className="text-sm text-text-secondary">Signal Quality</span>
-								<p className="text-metric-lg font-mono text-accent-teal mt-1">
+								<p className={clsx(
+									'text-metric-lg font-mono mt-1',
+									getQualityColor(vitals.signal_quality)
+								)}>
 									{(vitals.signal_quality * 100).toFixed(0)}%
 								</p>
-								{vitals.unwrapped_phase !== undefined && (
-									<span className="text-xs font-mono text-text-tertiary mt-2 block">
-										Phase: {vitals.unwrapped_phase.toFixed(2)} rad
+								<div className="mt-2 h-1 bg-surface-3 rounded overflow-hidden">
+									<div
+										className={clsx(
+											'h-full transition-all duration-300',
+											vitals.signal_quality >= 0.7 ? 'bg-accent-green' :
+											vitals.signal_quality >= 0.4 ? 'bg-accent-amber' : 'bg-accent-red'
+										)}
+										style={{ width: `${vitals.signal_quality * 100}%` }}
+									/>
+								</div>
+								{vitals.signal_quality < 0.4 && (
+									<span className="text-xs text-accent-red">
+										Low signal - check positioning
 									</span>
 								)}
 							</div>
 
-							{/* Motion Detection */}
+							{/* Phase Stability - Enhanced with progress bar */}
 							<div>
-								<span className="text-sm text-text-secondary">Motion</span>
+								<span className="text-sm text-text-secondary">Phase Stability</span>
 								<p className={clsx(
 									'text-metric-lg font-mono mt-1',
-									vitals.motion_detected ? 'text-accent-amber' : 'text-text-tertiary'
+									vitals.phase_stability !== undefined && vitals.phase_stability < 0.5
+										? 'text-accent-green'
+										: vitals.phase_stability !== undefined && vitals.phase_stability < 1.0
+										? 'text-accent-amber'
+										: 'text-accent-red'
 								)}>
-									{vitals.motion_detected ? 'Detected' : 'None'}
+									{vitals.phase_stability !== undefined
+										? vitals.phase_stability < 0.5 ? 'Good'
+										: vitals.phase_stability < 1.0 ? 'Fair' : 'Poor'
+										: '--'}
 								</p>
+								<div className="mt-2 h-1 bg-surface-3 rounded overflow-hidden">
+									<div
+										className={clsx(
+											'h-full transition-all duration-300',
+											getStabilityColor(vitals.phase_stability)
+										)}
+										style={{ width: `${stabilityPercent}%` }}
+									/>
+								</div>
+								<span className="text-xs font-mono text-text-tertiary">
+									{vitals.phase_stability?.toFixed(3) ?? '--'}
+									{vitals.motion_detected && (
+										<span className="ml-1.5 text-accent-amber">Motion!</span>
+									)}
+								</span>
 							</div>
 						</div>
 					</div>
@@ -209,8 +292,33 @@ export default function SignalViewer() {
 				/>
 			</div>
 
+			{/* Quality Metrics Trend Chart */}
+			{vitalsHistory.length > 0 && (
+				<QualityMetricsChart
+					timestamps={qualityData.timestamps}
+					hrSnrDb={qualityData.hrSnrDb}
+					rrSnrDb={qualityData.rrSnrDb}
+					phaseStability={qualityData.phaseStability}
+					signalQuality={qualityData.signalQuality}
+					width={1180}
+					height={200}
+				/>
+			)}
+
 			{/* Firmware Waveforms (only shown when using vital signs firmware) */}
 			{vitals?.source === 'firmware' && (
+				<div className="mt-4">
+					<WaveformChart
+						breathingWaveform={vitals.breathing_waveform}
+						heartWaveform={vitals.heart_waveform}
+						width={1180}
+						height={250}
+					/>
+				</div>
+			)}
+
+			{/* Chirp Waveforms (shown when using chirp firmware with waveform data) */}
+			{vitals?.source === 'chirp' && (vitals.breathing_waveform || vitals.heart_waveform) && (
 				<div className="mt-4">
 					<WaveformChart
 						breathingWaveform={vitals.breathing_waveform}

@@ -56,6 +56,7 @@ export interface VitalSigns {
 	source: 'firmware' | 'estimated' | 'chirp'
 	breathing_waveform?: number[]
 	heart_waveform?: number[]
+	phase_signal?: number[]  // Raw phase signal for visualization
 	unwrapped_phase?: number
 	// Enhanced quality metrics
 	hr_snr_db?: number
@@ -124,4 +125,49 @@ export interface LogEntry {
 	level: string
 	logger: string
 	message: string
+	extra: Record<string, unknown>
+}
+
+export interface TimingStats {
+	count: number
+	mean_ms: number
+	min_ms: number
+	max_ms: number
+	p50_ms: number
+	p95_ms: number
+	p99_ms: number
+	last_ms: number
+}
+
+export interface QueueStats {
+	current_depth: number
+	max_depth: number
+	avg_depth: number
+	total_enqueued: number
+	total_dropped: number
+	drop_rate_percent: number
+}
+
+export interface WSChannelMetrics {
+	messages_sent: number
+	messages_dropped: number
+	bytes_sent: number
+	send_errors: number
+	avg_send_time_ms: number
+	queue_depth: number
+}
+
+export interface PerformanceMetrics {
+	enabled: boolean
+	frame_count: number
+	sampled_count: number
+	dropped_frames: number
+	sample_rate: number
+	timing: Record<string, TimingStats>
+	queues: Record<string, QueueStats>
+	websocket: {
+		total: WSChannelMetrics
+		by_channel: Record<string, WSChannelMetrics>
+		connections: Record<string, number>
+	}
 }

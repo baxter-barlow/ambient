@@ -7,7 +7,7 @@ import StatusIndicator from '../components/common/StatusIndicator'
 import Tooltip from '../components/common/Tooltip'
 import ErrorMessage from '../components/common/ErrorMessage'
 import { showToast } from '../components/common/Toast'
-import type { SerialPort, PortVerifyResult } from '../types'
+import type { SerialPort, PortVerifyResult, PerformanceMetrics } from '../types'
 import clsx from 'clsx'
 
 export default function DeviceStatus() {
@@ -19,10 +19,25 @@ export default function DeviceStatus() {
 	const [error, setError] = useState<string | null>(null)
 	const [verifying, setVerifying] = useState(false)
 	const [verifyResult, setVerifyResult] = useState<PortVerifyResult | null>(null)
+	const [metrics, setMetrics] = useState<PerformanceMetrics | null>(null)
+	const [showMetrics, setShowMetrics] = useState(false)
 
 	useEffect(() => {
 		deviceApi.getPorts().then(setPorts).catch(() => {})
 	}, [])
+
+	// Fetch metrics periodically when connected and metrics panel is open
+	useEffect(() => {
+		if (!showMetrics) return
+
+		const fetchMetrics = () => {
+			deviceApi.getMetrics().then(setMetrics).catch(() => {})
+		}
+
+		fetchMetrics()
+		const interval = setInterval(fetchMetrics, 2000)
+		return () => clearInterval(interval)
+	}, [showMetrics])
 
 	const handleConnect = async () => {
 		setLoading(true)
@@ -153,8 +168,14 @@ export default function DeviceStatus() {
 			{/* Sensor Health Card */}
 			{isConnected && (
 				<div className="bg-surface-2 border border-border rounded-card">
-					<div className="px-4 py-3 border-b border-border">
+					<div className="px-4 py-3 border-b border-border flex justify-between items-center">
 						<span className="text-base text-text-primary font-medium">Sensor Health</span>
+						<button
+							onClick={() => setShowMetrics(!showMetrics)}
+							className="text-sm text-text-secondary hover:text-text-primary"
+						>
+							{showMetrics ? 'Hide Metrics' : 'Show Metrics'}
+						</button>
 					</div>
 					<div className="p-4">
 						<div className="grid grid-cols-4 gap-4">
@@ -188,6 +209,151 @@ export default function DeviceStatus() {
 								</p>
 							</div>
 						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Performance Metrics Card */}
+			{showMetrics && metrics && (
+				<div className="bg-surface-2 border border-border rounded-card">
+					<div className="px-4 py-3 border-b border-border flex justify-between items-center">
+						<span className="text-base text-text-primary font-medium">Performance Metrics</span>
+						<div className="flex items-center gap-2">
+							<StatusIndicator
+								status={metrics.enabled ? 'success' : 'neutral'}
+								label={metrics.enabled ? 'Profiling On' : 'Profiling Off'}
+							/>
+							<button
+								onClick={() => {
+									deviceApi.resetMetrics()
+									showToast('Metrics reset', 'info')
+								}}
+								className="text-sm text-text-secondary hover:text-text-primary"
+							>
+								Reset
+							</button>
+						</div>
+					</div>
+					<div className="p-4 space-y-4">
+						{/* Latency Stats */}
+						{metrics.timing.total && (
+							<div>
+								<h4 className="text-sm text-text-secondary mb-2">Frame Processing Latency</h4>
+								<div className="grid grid-cols-4 gap-4">
+									<div>
+										<span className="text-xs text-text-tertiary">P50</span>
+										<p className="text-metric-sm font-mono text-accent-teal">
+											{metrics.timing.total.p50_ms.toFixed(1)} <span className="text-xs text-text-tertiary">ms</span>
+										</p>
+									</div>
+									<div>
+										<span className="text-xs text-text-tertiary">P95</span>
+										<p className="text-metric-sm font-mono text-accent-teal">
+											{metrics.timing.total.p95_ms.toFixed(1)} <span className="text-xs text-text-tertiary">ms</span>
+										</p>
+									</div>
+									<div>
+										<span className="text-xs text-text-tertiary">P99</span>
+										<p className={clsx(
+											'text-metric-sm font-mono',
+											metrics.timing.total.p99_ms > 50 ? 'text-accent-amber' : 'text-accent-teal'
+										)}>
+											{metrics.timing.total.p99_ms.toFixed(1)} <span className="text-xs text-text-tertiary">ms</span>
+										</p>
+									</div>
+									<div>
+										<span className="text-xs text-text-tertiary">Max</span>
+										<p className={clsx(
+											'text-metric-sm font-mono',
+											metrics.timing.total.max_ms > 100 ? 'text-accent-red' : 'text-text-primary'
+										)}>
+											{metrics.timing.total.max_ms.toFixed(1)} <span className="text-xs text-text-tertiary">ms</span>
+										</p>
+									</div>
+								</div>
+							</div>
+						)}
+
+						{/* WebSocket Stats */}
+						{metrics.websocket?.total && (
+							<div>
+								<h4 className="text-sm text-text-secondary mb-2">WebSocket Broadcast</h4>
+								<div className="grid grid-cols-4 gap-4">
+									<div>
+										<span className="text-xs text-text-tertiary">Messages Sent</span>
+										<p className="text-metric-sm font-mono text-text-primary">
+											{metrics.websocket.total.messages_sent.toLocaleString()}
+										</p>
+									</div>
+									<div>
+										<span className="text-xs text-text-tertiary">Dropped</span>
+										<p className={clsx(
+											'text-metric-sm font-mono',
+											metrics.websocket.total.messages_dropped > 0 ? 'text-accent-amber' : 'text-text-primary'
+										)}>
+											{metrics.websocket.total.messages_dropped}
+										</p>
+									</div>
+									<div>
+										<span className="text-xs text-text-tertiary">Queue Depth</span>
+										<p className="text-metric-sm font-mono text-text-primary">
+											{metrics.websocket.total.queue_depth}
+										</p>
+									</div>
+									<div>
+										<span className="text-xs text-text-tertiary">Avg Send</span>
+										<p className="text-metric-sm font-mono text-text-primary">
+											{metrics.websocket.total.avg_send_time_ms.toFixed(1)} <span className="text-xs text-text-tertiary">ms</span>
+										</p>
+									</div>
+								</div>
+							</div>
+						)}
+
+						{/* Queue Stats by Channel */}
+						{Object.keys(metrics.queues).length > 0 && (
+							<div>
+								<h4 className="text-sm text-text-secondary mb-2">Queue Stats</h4>
+								<div className="space-y-2">
+									{Object.entries(metrics.queues).map(([name, q]) => (
+										<div key={name} className="flex items-center gap-4 text-sm">
+											<span className="font-mono text-text-tertiary w-24">{name}</span>
+											<span className="text-text-secondary">
+												Depth: <span className="font-mono text-text-primary">{q.current_depth}/{q.max_depth}</span>
+											</span>
+											<span className="text-text-secondary">
+												Dropped: <span className={clsx(
+													'font-mono',
+													q.total_dropped > 0 ? 'text-accent-amber' : 'text-text-primary'
+												)}>{q.total_dropped}</span>
+											</span>
+											<span className="text-text-secondary">
+												Drop Rate: <span className={clsx(
+													'font-mono',
+													q.drop_rate_percent > 1 ? 'text-accent-red' :
+													q.drop_rate_percent > 0 ? 'text-accent-amber' : 'text-text-primary'
+												)}>{q.drop_rate_percent.toFixed(2)}%</span>
+											</span>
+										</div>
+									))}
+								</div>
+							</div>
+						)}
+
+						{/* Connections by Channel */}
+						{metrics.websocket?.connections && Object.keys(metrics.websocket.connections).length > 0 && (
+							<div>
+								<h4 className="text-sm text-text-secondary mb-2">WebSocket Connections</h4>
+								<div className="flex gap-4">
+									{Object.entries(metrics.websocket.connections).map(([ch, count]) => (
+										<div key={ch} className="text-sm">
+											<span className="font-mono text-text-tertiary">{ch}:</span>
+											<span className="font-mono text-accent-teal ml-1">{count}</span>
+										</div>
+									))}
+								</div>
+							</div>
+						)}
 					</div>
 				</div>
 			)}
