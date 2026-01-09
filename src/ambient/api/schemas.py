@@ -126,16 +126,16 @@ class RecordingStatus(BaseModel):
 # Config schemas
 class ChirpParams(BaseModel):
 	start_freq_ghz: float = 60.0
-	bandwidth_mhz: float = 4000.0
+	bandwidth_mhz: float = 3900.0  # 100 MHz/us * 39 us
 	idle_time_us: float = 7.0
-	ramp_end_time_us: float = 60.0
+	ramp_end_time_us: float = 39.0
 	adc_samples: int = 256
-	sample_rate_ksps: int = 10000
+	sample_rate_ksps: int = 7200
 	rx_gain_db: int = 30
 
 
 class FrameParams(BaseModel):
-	chirps_per_frame: int = 64
+	chirps_per_frame: int = 32
 	frame_period_ms: float = 50.0  # 20 Hz
 
 

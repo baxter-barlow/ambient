@@ -21,14 +21,14 @@ class ProfileConfig:
 	profile_id: int = 0
 	start_freq_ghz: float = 60.0
 	idle_time_us: float = 7.0
-	adc_start_time_us: float = 6.0
-	ramp_end_time_us: float = 60.0
+	adc_start_time_us: float = 3.0
+	ramp_end_time_us: float = 39.0
 	tx_power: int = 0
 	tx_phase_shift: int = 0
-	freq_slope_mhz_us: float = 66.67
-	tx_start_time_us: float = 0.0
+	freq_slope_mhz_us: float = 100.0
+	tx_start_time_us: float = 1.0
 	adc_samples: int = 256
-	sample_rate_ksps: int = 10000
+	sample_rate_ksps: int = 7200
 	hp_corner_freq1: int = 0
 	hp_corner_freq2: int = 0
 	rx_gain_db: int = 30
@@ -38,8 +38,8 @@ class ProfileConfig:
 class FrameConfig:
 	"""Frame timing configuration."""
 	chirp_start_idx: int = 0
-	chirp_end_idx: int = 0
-	num_loops: int = 64
+	chirp_end_idx: int = 2
+	num_loops: int = 32
 	num_frames: int = 0
 	frame_period_ms: float = 50.0
 	trigger_select: int = 1
@@ -97,7 +97,7 @@ class ChirpConfig:
 			"chirpCfg 0 0 0 0 0 0 0 1",
 			"chirpCfg 1 1 0 0 0 0 0 2",
 			"chirpCfg 2 2 0 0 0 0 0 4",
-			f"frameCfg 0 2 {f.num_loops} {f.num_frames} "
+			f"frameCfg {f.chirp_start_idx} {f.chirp_end_idx} {f.num_loops} {f.num_frames} "
 			f"{f.frame_period_ms} {f.trigger_select} {f.trigger_delay_us}",
 			"guiMonitor -1 1 1 1 0 0 1",
 			"cfarCfg -1 0 2 8 4 3 0 15.0 0",
@@ -123,21 +123,7 @@ class ChirpConfig:
 
 def create_vital_signs_config() -> ChirpConfig:
 	"""Create configuration optimized for vital signs detection."""
-	return ChirpConfig(
-		profile=ProfileConfig(
-			start_freq_ghz=60.0,
-			idle_time_us=7.0,
-			ramp_end_time_us=60.0,
-			freq_slope_mhz_us=66.67,
-			adc_samples=256,
-			sample_rate_ksps=10000,
-			rx_gain_db=30,
-		),
-		frame=FrameConfig(
-			num_loops=64,
-			frame_period_ms=50.0,
-		),
-	)
+	return ChirpConfig()
 
 
 def load_config_file(path: Path | str) -> list[str]:

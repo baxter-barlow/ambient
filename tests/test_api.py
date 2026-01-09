@@ -141,8 +141,8 @@ class TestConfigRoutes:
 			# Verify default profile parameters are used
 			# Default ChirpParams has start_freq_ghz=60.0
 			assert cfg.profile.start_freq_ghz == 60.0
-			# Default FrameParams has chirps_per_frame=64
-			assert cfg.frame.num_loops == 64
+			# Default FrameParams has chirps_per_frame=32
+			assert cfg.frame.num_loops == 32
 
 		finally:
 			state.device._sensor = None
