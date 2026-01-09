@@ -36,6 +36,27 @@ Returns:
 - Version string if detected
 - Recommended configuration
 
+### `ambient status`
+
+Quick device status check.
+
+```bash
+ambient status [--cli-port PORT] [--data-port PORT]
+```
+
+Example output (device connected):
+```
+Connected - vital_signs (chirp mode)
+  Version: 3.5.0.4
+  Ports: /dev/ttyUSB0, /dev/ttyUSB1
+```
+
+Example output (device disconnected):
+```
+Disconnected - ports not found
+  CLI port missing: /dev/ttyUSB0
+```
+
 ### `ambient capture`
 
 Capture radar data and vital signs to file.
@@ -431,16 +452,21 @@ writer.close()
 ```python
 from ambient.sensor.config import ChirpConfig, ProfileConfig, FrameConfig
 
+# Use defaults (matches vital_signs_chirp.cfg)
+config = ChirpConfig()
+
+# Or customize parameters
 config = ChirpConfig(
     profile=ProfileConfig(
         start_freq_ghz=60.0,
-        freq_slope_mhz_us=66.67,
+        freq_slope_mhz_us=100.0,
+        ramp_end_time_us=39.0,
         adc_samples=256,
-        sample_rate_ksps=10000,
+        sample_rate_ksps=7200,
         rx_gain_db=30,
     ),
     frame=FrameConfig(
-        num_loops=64,
+        num_loops=32,
         frame_period_ms=50.0,
     ),
 )

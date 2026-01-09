@@ -147,3 +147,67 @@ class TestConfigRoutes:
 		finally:
 			state.device._sensor = None
 			state.device._state = state.device._state.__class__("disconnected")
+
+	def test_flash_non_default_profile(self, client, monkeypatch):
+		"""Verify flash applies custom profile parameters (not just defaults)."""
+		from unittest.mock import MagicMock
+
+		from ambient.api.state import get_app_state
+		from ambient.sensor.config import ChirpConfig
+
+		# First create a custom profile with different values
+		custom_profile = {
+			"name": "custom_test",
+			"description": "Test profile with non-default values",
+			"chirp": {
+				"start_freq_ghz": 61.0,
+				"bandwidth_mhz": 4000.0,
+				"idle_time_us": 10.0,
+				"ramp_end_time_us": 50.0,
+				"adc_samples": 128,
+				"sample_rate_ksps": 8000,
+				"rx_gain_db": 25,
+			},
+			"frame": {
+				"chirps_per_frame": 48,
+				"frame_period_ms": 40.0,
+			},
+		}
+
+		resp = client.post("/api/config/profiles", json=custom_profile)
+		assert resp.status_code == 200
+
+		mock_sensor = MagicMock()
+		captured_config = []
+
+		def capture_configure(cfg):
+			captured_config.append(cfg)
+
+		mock_sensor.configure = capture_configure
+		mock_sensor.stop = MagicMock()
+		mock_sensor.start = MagicMock()
+
+		state = get_app_state()
+		state.device._sensor = mock_sensor
+		state.device._state = state.device._state.__class__("streaming")
+
+		try:
+			resp = client.post("/api/config/flash?profile_name=custom_test")
+			assert resp.status_code == 200
+
+			assert len(captured_config) == 1
+			cfg = captured_config[0]
+			assert isinstance(cfg, ChirpConfig)
+
+			# Verify custom profile values (not defaults)
+			assert cfg.profile.start_freq_ghz == 61.0
+			assert cfg.profile.sample_rate_ksps == 8000
+			assert cfg.profile.rx_gain_db == 25
+			assert cfg.frame.num_loops == 48
+			assert cfg.frame.frame_period_ms == 40.0
+
+		finally:
+			state.device._sensor = None
+			state.device._state = state.device._state.__class__("disconnected")
+			# Clean up the test profile
+			client.delete("/api/config/profiles/custom_test")
