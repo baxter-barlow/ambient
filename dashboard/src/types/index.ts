@@ -44,6 +44,7 @@ export interface SensorFrame {
 	range_doppler?: number[][]
 	detected_points: DetectedPoint[]
 	phase?: number
+	is_chirp_firmware?: boolean
 }
 
 export interface VitalSigns {

@@ -12,6 +12,7 @@ import clsx from 'clsx'
 
 export default function DeviceStatus() {
 	const deviceStatus = useAppStore(s => s.deviceStatus)
+	const deviceStatusUpdatedAt = useAppStore(s => s.deviceStatusUpdatedAt)
 	const [ports, setPorts] = useState<SerialPort[]>([])
 	const [cliPort, setCliPort] = useState('/dev/ttyUSB0')
 	const [dataPort, setDataPort] = useState('/dev/ttyUSB1')
@@ -21,9 +22,16 @@ export default function DeviceStatus() {
 	const [verifyResult, setVerifyResult] = useState<PortVerifyResult | null>(null)
 	const [metrics, setMetrics] = useState<PerformanceMetrics | null>(null)
 	const [showMetrics, setShowMetrics] = useState(false)
+	const [now, setNow] = useState(Date.now())
 
 	useEffect(() => {
 		deviceApi.getPorts().then(setPorts).catch(() => {})
+	}, [])
+
+	// Update "now" every second to refresh "last update" display
+	useEffect(() => {
+		const interval = setInterval(() => setNow(Date.now()), 1000)
+		return () => clearInterval(interval)
 	}, [])
 
 	// Fetch metrics periodically when connected and metrics panel is open
@@ -108,6 +116,11 @@ export default function DeviceStatus() {
 
 	const isConnected = deviceStatus?.state === 'streaming' || deviceStatus?.state === 'configuring'
 	const canConnect = verifyResult?.overall === 'pass' || verifyResult?.overall === 'warning'
+
+	// Calculate seconds since last status update
+	const secondsSinceUpdate = deviceStatusUpdatedAt ? Math.floor((now - deviceStatusUpdatedAt) / 1000) : null
+	const isStale = secondsSinceUpdate !== null && secondsSinceUpdate > 3
+
 	const portOptions = ports.length > 0
 		? ports.map(p => ({ value: p.device, label: p.device }))
 		: [
@@ -123,8 +136,16 @@ export default function DeviceStatus() {
 
 			{/* Connection Status Card */}
 			<div className="bg-surface-2 border border-border rounded-card">
-				<div className="px-4 py-3 border-b border-border">
+				<div className="px-4 py-3 border-b border-border flex justify-between items-center">
 					<span className="text-base text-text-primary font-medium">Connection Status</span>
+					{secondsSinceUpdate !== null && (
+						<span className={clsx(
+							'text-xs font-mono',
+							isStale ? 'text-accent-amber' : 'text-text-tertiary'
+						)}>
+							{isStale && '! '}Updated {secondsSinceUpdate}s ago
+						</span>
+					)}
 				</div>
 				<div className="p-4">
 					<div className="grid grid-cols-2 gap-4">

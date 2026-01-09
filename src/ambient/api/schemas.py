@@ -190,3 +190,13 @@ class LogEntry(BaseModel):
 	logger: str
 	message: str
 	extra: dict[str, Any] = Field(default_factory=dict)
+
+
+# Streaming config update
+class StreamingConfigUpdate(BaseModel):
+	"""Update streaming config at runtime."""
+	include_range_doppler: bool | None = None
+	include_waveforms: bool | None = None
+	max_heatmap_size: int | None = None
+	max_waveform_samples: int | None = None
+	vitals_interval_hz: float | None = None

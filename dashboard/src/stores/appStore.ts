@@ -16,6 +16,7 @@ interface VitalsHistoryEntry {
 interface AppState {
 	// Device state
 	deviceStatus: DeviceStatus | null
+	deviceStatusUpdatedAt: number | null  // Unix timestamp of last update
 	setDeviceStatus: (status: DeviceStatus) => void
 
 	// Sensor data
@@ -49,7 +50,8 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
 	// Device
 	deviceStatus: null,
-	setDeviceStatus: (status) => set({ deviceStatus: status }),
+	deviceStatusUpdatedAt: null,
+	setDeviceStatus: (status) => set({ deviceStatus: status, deviceStatusUpdatedAt: Date.now() }),
 
 	// Sensor data (keep last N frames for plotting)
 	sensorFrames: [],

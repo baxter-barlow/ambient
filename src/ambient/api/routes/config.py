@@ -8,7 +8,7 @@ from pathlib import Path
 import aiofiles
 from fastapi import APIRouter, HTTPException
 
-from ..schemas import ChirpParams, ConfigProfile, FrameParams
+from ..schemas import ChirpParams, ConfigProfile, FrameParams, StreamingConfigUpdate
 from ..state import get_app_state
 
 router = APIRouter(prefix="/api/config", tags=["config"])
@@ -221,5 +221,51 @@ async def validate_config():
 				"target_range_max_m": config.chirp.target_range_max_m,
 				"output_mode": config.chirp.output_mode,
 			},
+		},
+	}
+
+
+@router.get("/streaming")
+async def get_streaming_config():
+	"""Get current streaming configuration."""
+	from ..tasks import streaming_config
+
+	return {
+		"include_range_doppler": streaming_config.include_range_doppler,
+		"include_waveforms": streaming_config.include_waveforms,
+		"max_heatmap_size": streaming_config.max_heatmap_size,
+		"max_waveform_samples": streaming_config.max_waveform_samples,
+		"max_phase_signal_samples": streaming_config.max_phase_signal_samples,
+		"vitals_interval_hz": streaming_config.vitals_interval_hz,
+	}
+
+
+@router.put("/streaming")
+async def update_streaming_config(update: StreamingConfigUpdate):
+	"""Update streaming configuration at runtime.
+
+	Changes take effect immediately without server restart.
+	"""
+	from ..tasks import streaming_config
+
+	if update.include_range_doppler is not None:
+		streaming_config.include_range_doppler = update.include_range_doppler
+	if update.include_waveforms is not None:
+		streaming_config.include_waveforms = update.include_waveforms
+	if update.max_heatmap_size is not None:
+		streaming_config.max_heatmap_size = update.max_heatmap_size
+	if update.max_waveform_samples is not None:
+		streaming_config.max_waveform_samples = update.max_waveform_samples
+	if update.vitals_interval_hz is not None:
+		streaming_config.vitals_interval_hz = update.vitals_interval_hz
+
+	return {
+		"status": "updated",
+		"streaming": {
+			"include_range_doppler": streaming_config.include_range_doppler,
+			"include_waveforms": streaming_config.include_waveforms,
+			"max_heatmap_size": streaming_config.max_heatmap_size,
+			"max_waveform_samples": streaming_config.max_waveform_samples,
+			"vitals_interval_hz": streaming_config.vitals_interval_hz,
 		},
 	}

@@ -88,14 +88,27 @@ def frame_to_dict(frame, processed=None, config: StreamingConfig | None = None) 
 			snr=float(pt.snr) if hasattr(pt, "snr") else 0.0,
 		).model_dump())
 
+	# Derive range_profile from TLV 2, or fall back to chirp_complex_fft (TLV 0x0500)
+	range_profile = []
+	if frame.range_profile is not None:
+		range_profile = frame.range_profile.tolist()
+	elif frame.chirp_complex_fft is not None and len(frame.chirp_complex_fft.iq_data) > 0:
+		# Derive range profile from chirp I/Q data: magnitude in dB
+		magnitudes = np.abs(frame.chirp_complex_fft.iq_data)
+		range_profile = (20 * np.log10(magnitudes + 1)).tolist()
+
+	# Detect chirp firmware (has chirp-specific TLVs)
+	is_chirp = frame.chirp_phase is not None or frame.chirp_complex_fft is not None
+
 	result = {
 		"frame_number": frame.header.frame_number if frame.header else 0,
 		"timestamp": frame.timestamp,
-		"range_profile": frame.range_profile.tolist() if frame.range_profile is not None else [],
+		"range_profile": range_profile,
 		"detected_points": detected,
+		"is_chirp_firmware": is_chirp,
 	}
 
-	# Include range_doppler with size limiting
+	# Include range_doppler with size limiting (TLV 5 only, not available with chirp)
 	if cfg.include_range_doppler and frame.range_doppler_heatmap is not None:
 		heatmap = downsample_heatmap(frame.range_doppler_heatmap, cfg.max_heatmap_size)
 		result["range_doppler"] = heatmap.tolist()
@@ -159,8 +172,14 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 		return
 
 	last_vitals_broadcast = 0.0
+	last_status_broadcast = 0.0
+	status_interval = 1.0  # Broadcast device status at 1 Hz
 	vitals_interval = 1.0 / streaming_config.vitals_interval_hz
 	profiler = get_profiler()
+
+	# Fallback ChirpVitalsProcessor for when chirp_phase data is present
+	# but initial chirp detection failed (extractor is VitalsExtractor)
+	chirp_vitals_fallback: ChirpVitalsProcessor | None = None
 
 	logger.info(
 		f"Starting acquisition loop (vitals_interval={vitals_interval:.2f}s, "
@@ -187,9 +206,17 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 				with profiler.measure("vitals"):
 					if frame.vital_signs is not None:
 						vitals = VitalSignsData.from_firmware(frame.vital_signs, frame.timestamp)
-					elif frame.chirp_phase is not None and isinstance(extractor, ChirpVitalsProcessor):
-						# ChirpVitalsProcessor expects RadarFrame, not ProcessedFrame
-						vitals = extractor.process_frame(frame)
+					elif frame.chirp_phase is not None:
+						# Use ChirpVitalsProcessor for chirp phase data
+						if isinstance(extractor, ChirpVitalsProcessor):
+							vitals = extractor.process_frame(frame)
+						else:
+							# Chirp phase present but extractor is VitalsExtractor
+							# Create fallback processor on first use
+							if chirp_vitals_fallback is None:
+								chirp_vitals_fallback = ChirpVitalsProcessor()
+								logger.info("Created fallback ChirpVitalsProcessor for chirp_phase data")
+							vitals = chirp_vitals_fallback.process_frame(frame)
 					else:
 						# VitalsExtractor expects ProcessedFrame
 						vitals = extractor.process_frame(processed)
@@ -220,6 +247,17 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 						}
 						await ws_manager.broadcast("sensor", vitals_msg)
 						last_vitals_broadcast = now
+
+					# Broadcast device status at 1 Hz for live dashboard updates
+					if (now - last_status_broadcast) >= status_interval:
+						status = device.get_status()
+						status_msg = {
+							"type": "device_state",
+							"timestamp": now,
+							"payload": status.model_dump(mode="json"),
+						}
+						await ws_manager.broadcast("sensor", status_msg)
+						last_status_broadcast = now
 
 				profiler.frame_complete()
 

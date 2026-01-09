@@ -276,6 +276,7 @@ export default function SignalViewer() {
 					data={latestFrame?.range_doppler}
 					width={280}
 					height={280}
+					isChirpFirmware={latestFrame?.is_chirp_firmware}
 				/>
 				<PhaseSignal
 					timestamps={phaseData.timestamps}

@@ -6,6 +6,7 @@ interface Props {
 	width?: number
 	height?: number
 	isLoading?: boolean
+	isChirpFirmware?: boolean
 }
 
 // Perceptually uniform colormap: dark gray -> teal -> orange -> yellow/white
@@ -43,7 +44,7 @@ function valueToColor(value: number, min: number, max: number): string {
 	}
 }
 
-export default function RangeDoppler({ data, width = 300, height = 300, isLoading = false }: Props) {
+export default function RangeDoppler({ data, width = 300, height = 300, isLoading = false, isChirpFirmware = false }: Props) {
 	const canvasRef = useRef<HTMLCanvasElement>(null)
 
 	useEffect(() => {
@@ -81,13 +82,18 @@ export default function RangeDoppler({ data, width = 300, height = 300, isLoadin
 	const hasDimensions = data && data.length > 0 && data[0]?.length > 0
 	const isEmpty = !hasDimensions && !isLoading
 
+	// Different message for chirp firmware vs waiting for data
+	const emptyMessage = isChirpFirmware
+		? "Not available with Chirp firmware"
+		: "Waiting for range-Doppler data..."
+
 	return (
 		<ChartContainer
 			title="Range-Doppler Map"
 			subtitle={hasDimensions ? `${data.length} x ${data[0].length}` : undefined}
 			isLoading={isLoading}
 			isEmpty={isEmpty}
-			emptyMessage="Waiting for range-Doppler data..."
+			emptyMessage={emptyMessage}
 			loadingMessage="Loading range-Doppler map..."
 			width={width}
 			height={height}
