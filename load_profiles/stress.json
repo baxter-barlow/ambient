@@ -1,0 +1,16 @@
+{
+  "fps": 100.0,
+  "duration_seconds": 30.0,
+  "range_bins": 256,
+  "include_doppler": true,
+  "doppler_size": 64,
+  "include_points": true,
+  "max_points": 10,
+  "include_vitals": true,
+  "vitals_rate_hz": 2.0,
+  "broadcast_to_ws": true,
+  "ws_url": "ws://localhost:8000/ws/sensor",
+  "simulate_motion": true,
+  "motion_probability": 0.2,
+  "jitter_percent": 20.0
+}
