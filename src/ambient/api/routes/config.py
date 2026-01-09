@@ -152,12 +152,12 @@ async def flash_config(profile_name: str = "default"):
 		),
 	)
 
-	# Stop, reconfigure, and restart
+	# Stop, reconfigure, and restart (use methods to reset buffers and state)
 	sensor = state.device.sensor
 	if sensor:
-		sensor.send_command("sensorStop")
+		sensor.stop()
 		sensor.configure(chirp_config)
-		sensor.send_command("sensorStart")
+		sensor.start()
 		state.device._config_name = profile_name
 
 	return {"status": "ok", "profile": profile_name}
