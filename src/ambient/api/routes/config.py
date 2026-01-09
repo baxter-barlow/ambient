@@ -152,11 +152,20 @@ async def flash_config(profile_name: str = "default"):
 		),
 	)
 
-	# Stop, reconfigure, and restart (use methods to reset buffers and state)
+	# Stop, reconfigure using config file, and restart
 	sensor = state.device.sensor
 	if sensor:
 		sensor.stop()
-		sensor.configure(chirp_config)
+
+		# Use config file if available (matches initial connection behavior)
+		from pathlib import Path
+		config_path = Path("configs") / "vital_signs_chirp.cfg"
+		if config_path.exists():
+			sensor.configure(config_path)
+		else:
+			# Fallback to generated config
+			sensor.configure(chirp_config)
+
 		sensor.start()
 		state.device._config_name = profile_name
 
