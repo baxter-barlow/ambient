@@ -34,9 +34,13 @@ dashboard/.vite/
 # Local dev settings
 .githooks/
 .claude/
+.codex/
+.prompts/
+.git-author
 CLAUDE.md
 AGENTS.md
 *.claude
 .aider*
 .continue/
 .cursor/
+*.tar.gz
