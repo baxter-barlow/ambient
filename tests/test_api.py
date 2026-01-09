@@ -105,3 +105,45 @@ class TestConfigRoutes:
 			# Cleanup
 			state.device._sensor = None
 			state.device._state = state.device._state.__class__("disconnected")
+
+	def test_flash_uses_profile_parameters(self, client, monkeypatch):
+		"""Verify flash applies selected profile parameters to configuration."""
+		from unittest.mock import MagicMock
+
+		from ambient.api.state import get_app_state
+		from ambient.sensor.config import ChirpConfig
+
+		# Create mock sensor that captures configure() argument
+		mock_sensor = MagicMock()
+		captured_config = []
+
+		def capture_configure(cfg):
+			captured_config.append(cfg)
+
+		mock_sensor.configure = capture_configure
+		mock_sensor.stop = MagicMock()
+		mock_sensor.start = MagicMock()
+
+		state = get_app_state()
+		state.device._sensor = mock_sensor
+		state.device._state = state.device._state.__class__("streaming")
+
+		try:
+			# Flash with default profile
+			resp = client.post("/api/config/flash?profile_name=default")
+			assert resp.status_code == 200
+
+			# Verify configure was called with a ChirpConfig
+			assert len(captured_config) == 1
+			cfg = captured_config[0]
+			assert isinstance(cfg, ChirpConfig)
+
+			# Verify default profile parameters are used
+			# Default ChirpParams has start_freq_ghz=60.0
+			assert cfg.profile.start_freq_ghz == 60.0
+			# Default FrameParams has chirps_per_frame=64
+			assert cfg.frame.num_loops == 64
+
+		finally:
+			state.device._sensor = None
+			state.device._state = state.device._state.__class__("disconnected")
