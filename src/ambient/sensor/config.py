@@ -74,7 +74,10 @@ class ChirpConfig:
 		return c / (2 * freq * frame_time * num_chirps) if freq > 0 and num_chirps > 0 else 0
 
 	def to_commands(self) -> list[str]:
-		"""Generate CLI commands for this configuration."""
+		"""Generate CLI commands for this configuration.
+
+		Does NOT include sensorStart - caller should use sensor.start() after configure().
+		"""
 		p = self.profile
 		f = self.frame
 
@@ -85,32 +88,35 @@ class ChirpConfig:
 			"channelCfg 15 7 0",
 			"adcCfg 2 1",
 			"adcbufCfg -1 0 1 1 1",
+			"lowPower 0 0",
 			f"profileCfg {p.profile_id} {p.start_freq_ghz} {p.idle_time_us} {p.adc_start_time_us} "
 			f"{p.ramp_end_time_us} {p.tx_power} {p.tx_phase_shift} {p.freq_slope_mhz_us} "
 			f"{p.tx_start_time_us} {p.adc_samples} {p.sample_rate_ksps} {p.hp_corner_freq1} "
 			f"{p.hp_corner_freq2} {p.rx_gain_db}",
-			f"chirpCfg {f.chirp_start_idx} {f.chirp_end_idx} 0 0 0 0 0 1",
-			f"frameCfg {f.chirp_start_idx} {f.chirp_end_idx} {f.num_loops} {f.num_frames} "
+			# 3 chirp configs for TX antennas (IWR6843 has 3 TX)
+			"chirpCfg 0 0 0 0 0 0 0 1",
+			"chirpCfg 1 1 0 0 0 0 0 2",
+			"chirpCfg 2 2 0 0 0 0 0 4",
+			f"frameCfg 0 2 {f.num_loops} {f.num_frames} "
 			f"{f.frame_period_ms} {f.trigger_select} {f.trigger_delay_us}",
-			"lowPower 0 0",
-			# guiMonitor: subframe, detObj, rangeProfile, noiseProfile, azimuthHeatmap, rangeDopplerHeatmap, stats
-			"guiMonitor -1 1 1 0 0 1 1",
-			"cfarCfg -1 0 2 8 4 3 0 15 1",
-			"cfarCfg -1 1 0 4 2 3 1 15 1",
+			"guiMonitor -1 1 1 1 0 0 1",
+			"cfarCfg -1 0 2 8 4 3 0 15.0 0",
+			"cfarCfg -1 1 0 4 2 3 1 15.0 0",
 			"multiObjBeamForming -1 1 0.5",
-			"clutterRemoval -1 1",
 			"calibDcRangeSig -1 0 -5 8 256",
-			"extendedMaxVelocity -1 0",
-			"lvdsStreamCfg -1 0 0 0",
-			"compRangeBiasAndRxChanPhase 0.0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0",
-			"measureRangeBiasAndRxChanPhase 0 1.5 0.2",
-			"CQRxSatMonitor 0 3 5 121 0",
-			"CQSigImgMonitor 0 127 4",
-			"analogMonitor 0 0",
+			"clutterRemoval -1 0",
+			"compRangeBiasAndRxChanPhase 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0",
+			"measureRangeBiasAndRxChanPhase 0 1. 0.2",
 			"aoaFovCfg -1 -90 90 -90 90",
-			"cfarFovCfg -1 0 0 12.00",
-			"cfarFovCfg -1 1 -5.00 5.00",
-			"sensorStart",
+			"cfarFovCfg -1 0 0.25 15",
+			"cfarFovCfg -1 1 -7.06 12",
+			"extendedMaxVelocity -1 0",
+			"CQRxSatMonitor 0 3 11 121 0",
+			"CQSigImgMonitor 0 127 8",
+			"analogMonitor 0 0",
+			"lvdsStreamCfg -1 0 0 0",
+			"bpmCfg -1 0 0 1",
+			"calibData 0 0 0",
 		]
 		return commands
 

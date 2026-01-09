@@ -88,6 +88,7 @@ def capture(cli_port: str, data_port: str, config: str | None, output: str | Non
 		else:
 			from ambient.sensor.config import create_vital_signs_config
 			sensor.configure(create_vital_signs_config().to_commands())
+		sensor.start()
 
 		console.print("[green]Sensor connected[/]")
 		console.print("Press Ctrl+C to stop...")
@@ -164,6 +165,7 @@ def monitor(cli_port: str, data_port: str, config: str | None) -> None:
 		else:
 			from ambient.sensor.config import create_vital_signs_config
 			sensor.configure(create_vital_signs_config().to_commands())
+		sensor.start()
 
 		console.print("[green]Connected[/] - Close plot window to stop")
 		plotter.setup()
