@@ -52,13 +52,26 @@ Common issues and solutions for the Ambient radar SDK.
 **Symptoms:** Ports appear but CLI is unresponsive, or only XDS110 shows up
 
 **Quick checks:**
-1. **Flash mode (SOP = 0b011)** enumerates as XDS110 and typically won’t respond to `version`
+1. **Flash mode (SOP = 0b011)** enumerates as XDS110 and typically won't respond to `version`
 2. **Run mode (SOP = 0b000)** shows two serial ports and responds to `version`
 3. If `version` responds but `chirp status` is unknown, the firmware is running but not chirp-enabled
 
 **Fixes:**
 1. Power cycle and set SOP jumpers for the desired mode
 2. Reflash firmware if the device is in run mode but responds with unexpected CLI output
+
+### Single Port Enumeration
+
+**Symptoms:** Only one serial port appears instead of two (CLI + Data)
+
+**Common causes:**
+1. Some host systems enumerate the IWR6843AOPEVM as a single composite device
+2. USB hub or cable may limit the number of virtual serial ports
+
+**Workarounds:**
+1. Use `ambient status` to verify CLI port responsiveness (data port optional)
+2. Try a direct USB connection (no hub)
+3. For streaming data, both ports are required; the data port handles high-speed frame output
 
 ## Streaming Issues
 
