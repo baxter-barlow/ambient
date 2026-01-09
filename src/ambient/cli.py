@@ -217,6 +217,55 @@ def info(cli_port: str, data_port: str) -> None:
 		sensor.disconnect()
 
 
+@main.command()
+@click.option("--cli-port", default="/dev/ttyUSB0", help="CLI serial port")
+@click.option("--data-port", default="/dev/ttyUSB1", help="Data serial port")
+def status(cli_port: str, data_port: str) -> None:
+	"""Quick device status check."""
+	from ambient.sensor import RadarSensor
+	from ambient.sensor.config import SerialConfig
+	from ambient.api.state import detect_chirp_firmware
+	from pathlib import Path
+
+	# Check if ports exist
+	cli_exists = Path(cli_port).exists()
+	data_exists = Path(data_port).exists()
+
+	if not cli_exists or not data_exists:
+		console.print(f"[red]Disconnected[/] - ports not found")
+		if not cli_exists:
+			console.print(f"  CLI port missing: {cli_port}")
+		if not data_exists:
+			console.print(f"  Data port missing: {data_port}")
+		sys.exit(1)
+
+	sensor = RadarSensor(SerialConfig(cli_port=cli_port, data_port=data_port))
+
+	try:
+		sensor.connect()
+
+		# Get firmware info
+		fw_info = sensor.detect_firmware()
+		fw_type = fw_info.get("type", "unknown")
+		fw_version = fw_info.get("version", "N/A")
+
+		# Check for chirp mode
+		chirp_response = sensor.send_command("chirp status", timeout=0.5)
+		chirp_result = detect_chirp_firmware(chirp_response)
+
+		# Build status line
+		mode = "chirp" if chirp_result.is_chirp else "standard"
+		console.print(f"[green]Connected[/] - {fw_type} ({mode} mode)")
+		console.print(f"  Version: {fw_version}")
+		console.print(f"  Ports: {cli_port}, {data_port}")
+
+	except Exception as e:
+		console.print(f"[red]Error[/] - {e}")
+		sys.exit(1)
+	finally:
+		sensor.disconnect()
+
+
 @main.group()
 def config() -> None:
 	"""Manage radar configuration files."""
