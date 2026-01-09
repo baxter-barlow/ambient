@@ -35,13 +35,15 @@ For best results, use TI Vital Signs demo firmware:
 
 1. Download [UniFlash](https://www.ti.com/tool/UNIFLASH)
 2. Download [Vital Signs Lab firmware](https://dev.ti.com/tirex/explore/node?node=A__ACkOIiM4M1.c0vA9s9Y4HA__radar_toolbox__1AslXXD__LATEST)
-3. Set SOP jumpers to flash mode:
-   - SOP0: 00 (short)
-   - SOP2: 10 (open)
+3. Set SOP jumpers to flash mode (SOP = 0b011):
+   - SOP0: SHORT (jumper ON)
+   - SOP1: SHORT (jumper ON)
+   - SOP2: OPEN (jumper OFF)
 4. Flash via UniFlash
-5. Reset SOP jumpers for run mode:
-   - SOP0: 01 (open)
-   - SOP2: 00 (short)
+5. Reset SOP jumpers for run mode (SOP = 0b000):
+   - SOP0: OPEN (jumper OFF)
+   - SOP1: OPEN (jumper OFF)
+   - SOP2: OPEN (jumper OFF)
 6. Power cycle the board
 
 See `docs/firmware_setup.md` for detailed instructions.

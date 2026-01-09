@@ -44,3 +44,4 @@ AGENTS.md
 .continue/
 .cursor/
 *.tar.gz
+configs/profiles.json

@@ -92,6 +92,19 @@ After flashing:
 3. **Connect USB**
 4. Two serial ports should appear (`/dev/ttyACM0` and `/dev/ttyACM1` on Linux)
 
+## Step 6.1: Verify Boot Mode (Flash vs Run)
+
+Use these quick checks to confirm the board is in the expected mode:
+
+- **Flash mode (SOP = 0b011)**:
+  - Board enumerates as **XDS110 debug probe**
+  - CLI port typically **does not** respond to `version`
+- **Run mode (SOP = 0b000)**:
+  - Two serial ports appear (CLI + Data)
+  - CLI responds to `version` and `chirp status`
+
+If the CLI port responds but `chirp status` returns "Unknown command", the device is in run mode but likely running a non-chirp firmware build.
+
 ## Step 7: Verify Firmware
 
 Connect to the CLI port and check the version:

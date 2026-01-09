@@ -47,6 +47,19 @@ Common issues and solutions for the Ambient radar SDK.
 2. Run port verification in dashboard
 3. Check device documentation for correct port mapping
 
+### Flash Mode vs Run Mode
+
+**Symptoms:** Ports appear but CLI is unresponsive, or only XDS110 shows up
+
+**Quick checks:**
+1. **Flash mode (SOP = 0b011)** enumerates as XDS110 and typically won’t respond to `version`
+2. **Run mode (SOP = 0b000)** shows two serial ports and responds to `version`
+3. If `version` responds but `chirp status` is unknown, the firmware is running but not chirp-enabled
+
+**Fixes:**
+1. Power cycle and set SOP jumpers for the desired mode
+2. Reflash firmware if the device is in run mode but responds with unexpected CLI output
+
 ## Streaming Issues
 
 ### No Data After Connection
