@@ -3,14 +3,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
+from collections import deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
 
+from ambient.config import get_config
 from ambient.utils.profiler import get_profiler
 from ambient.vitals.extractor import ChirpVitalsProcessor
+from ambient.vitals.extractor import VitalsConfig as ExtractorVitalsConfig
 from ambient.vitals.extractor import VitalSigns as VitalSignsData
 
 from .schemas import DetectedPoint, VitalSigns
@@ -22,6 +26,9 @@ if TYPE_CHECKING:
 	from .ws.manager import ConnectionManager
 
 logger = logging.getLogger(__name__)
+
+# Environment variable for debug logging (once per session)
+AMBIENT_DEBUG = os.environ.get("AMBIENT_DEBUG", "").lower() == "true"
 
 
 @dataclass
@@ -52,6 +59,70 @@ def _init_streaming_config() -> StreamingConfig:
 
 # Global streaming config (initialized from AppConfig)
 streaming_config = _init_streaming_config()
+
+
+def _create_extractor_config() -> ExtractorVitalsConfig:
+	"""Create extractor VitalsConfig from centralized AppConfig."""
+	app_config = get_config()
+	vitals_cfg = app_config.vitals
+	return ExtractorVitalsConfig(
+		sample_rate_hz=vitals_cfg.sample_rate_hz,
+		window_seconds=vitals_cfg.window_seconds,
+		hr_freq_min_hz=vitals_cfg.hr_freq_min_hz,
+		hr_freq_max_hz=vitals_cfg.hr_freq_max_hz,
+		rr_freq_min_hz=vitals_cfg.rr_freq_min_hz,
+		rr_freq_max_hz=vitals_cfg.rr_freq_max_hz,
+		motion_threshold=vitals_cfg.motion_threshold,
+	)
+
+
+class FrameRateTracker:
+	"""Track frame rate from incoming frame timestamps."""
+
+	def __init__(self, window_size: int = 100, tolerance: float = 0.15):
+		self._timestamps: deque[float] = deque(maxlen=window_size)
+		self._tolerance = tolerance
+		self._last_warning_time = 0.0
+		self._warning_interval = 30.0  # Only warn every 30s
+
+	def record(self, timestamp: float) -> None:
+		"""Record frame timestamp."""
+		self._timestamps.append(timestamp)
+
+	@property
+	def measured_rate(self) -> float | None:
+		"""Calculate measured frame rate from timestamps."""
+		if len(self._timestamps) < 10:
+			return None
+		dt = self._timestamps[-1] - self._timestamps[0]
+		if dt <= 0:
+			return None
+		return (len(self._timestamps) - 1) / dt
+
+	def check_rate(self, configured_rate: float) -> float:
+		"""Check measured rate against configured rate.
+
+		Returns the rate to use for vitals processing (measured if mismatch, else configured).
+		"""
+		measured = self.measured_rate
+		if measured is None:
+			return configured_rate
+
+		# Calculate relative error
+		relative_error = abs(measured - configured_rate) / configured_rate
+
+		if relative_error > self._tolerance:
+			now = time.time()
+			if now - self._last_warning_time > self._warning_interval:
+				logger.warning(
+					f"Frame rate mismatch: configured={configured_rate:.1f}Hz, "
+					f"measured={measured:.1f}Hz (error={relative_error:.1%}). "
+					f"Using measured rate for vitals."
+				)
+				self._last_warning_time = now
+			return measured
+
+		return configured_rate
 
 
 def downsample_array(arr: NDArray, max_samples: int) -> NDArray:
@@ -181,10 +252,18 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 	status_interval = 1.0  # Broadcast device status at 1 Hz
 	vitals_interval = 1.0 / streaming_config.vitals_interval_hz
 	profiler = get_profiler()
+	app_config = get_config()
+	configured_sample_rate = app_config.vitals.sample_rate_hz
+
+	# Frame rate tracking for reconciliation
+	frame_rate_tracker = FrameRateTracker(window_size=100, tolerance=0.15)
 
 	# Fallback ChirpVitalsProcessor for when chirp_phase data is present
 	# but initial chirp detection failed (extractor is VitalsExtractor)
 	chirp_vitals_fallback: ChirpVitalsProcessor | None = None
+
+	# Debug logging state (once per session)
+	debug_logged = False
 
 	logger.info(
 		f"Starting acquisition loop (vitals_interval={vitals_interval:.2f}s, "
@@ -201,6 +280,19 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 
 				device.record_frame()
 				profiler.frame_start()
+				frame_rate_tracker.record(time.time())
+
+				# Debug logging (once per session when AMBIENT_DEBUG is set)
+				if AMBIENT_DEBUG and not debug_logged:
+					rp_len = len(frame.range_profile) if frame.range_profile is not None else 0
+					cfft_len = len(frame.chirp_complex_fft.iq_data) if frame.chirp_complex_fft else 0
+					has_phase = frame.chirp_phase is not None
+					is_chirp = has_phase or frame.chirp_complex_fft is not None
+					logger.info(
+						f"Frame TLVs: range_profile={rp_len}, chirp_complex_fft={cfft_len}, "
+						f"chirp_phase={'yes' if has_phase else 'no'}, is_chirp={is_chirp}"
+					)
+					debug_logged = True
 
 				# Process frame
 				with profiler.measure("pipeline"):
@@ -215,12 +307,29 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 						# Use ChirpVitalsProcessor for chirp phase data
 						if isinstance(extractor, ChirpVitalsProcessor):
 							vitals = extractor.process_frame(frame)
+							# Debug: log vitals state periodically
+							if AMBIENT_DEBUG and device._frame_count % 100 == 0:
+								buf_full = extractor.buffer_fullness
+								motion = vitals.motion_detected if vitals else "N/A"
+								hr = vitals.heart_rate_bpm if vitals else None
+								hr_conf = vitals.heart_rate_confidence if vitals else 0
+								rr = vitals.respiratory_rate_bpm if vitals else None
+								rr_conf = vitals.respiratory_rate_confidence if vitals else 0
+								quality = vitals.signal_quality if vitals else 0
+								logger.info(
+									f"Vitals debug: buffer={buf_full:.0%}, motion={motion}, "
+									f"HR={hr}({hr_conf:.0%}), RR={rr}({rr_conf:.0%}), quality={quality:.0%}"
+								)
 						else:
 							# Chirp phase present but extractor is VitalsExtractor
-							# Create fallback processor on first use
+							# Create fallback processor on first use with configured sample rate
 							if chirp_vitals_fallback is None:
-								chirp_vitals_fallback = ChirpVitalsProcessor()
-								logger.info("Created fallback ChirpVitalsProcessor for chirp_phase data")
+								extractor_config = _create_extractor_config()
+								chirp_vitals_fallback = ChirpVitalsProcessor(config=extractor_config)
+								logger.info(
+									f"Created fallback ChirpVitalsProcessor for chirp_phase data "
+									f"(sample_rate={extractor_config.sample_rate_hz}Hz)"
+								)
 							vitals = chirp_vitals_fallback.process_frame(frame)
 					elif isinstance(extractor, ChirpVitalsProcessor):
 						# ChirpVitalsProcessor but no chirp_phase in this frame - skip vitals
@@ -258,6 +367,15 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 
 					# Broadcast device status at 1 Hz for live dashboard updates
 					if (now - last_status_broadcast) >= status_interval:
+						# Check frame rate reconciliation and apply to vitals processor
+						effective_rate = frame_rate_tracker.check_rate(configured_sample_rate)
+						if effective_rate != configured_sample_rate:
+							# Apply measured rate to active processor
+							if isinstance(extractor, ChirpVitalsProcessor):
+								extractor.update_sample_rate(effective_rate)
+							elif chirp_vitals_fallback is not None:
+								chirp_vitals_fallback.update_sample_rate(effective_rate)
+
 						status = device.get_status()
 						status_msg = {
 							"type": "device_state",
@@ -283,6 +401,14 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 	except Exception as e:
 		logger.error(f"Acquisition loop error: {e}")
 	finally:
+		# Log fps summary when debug is enabled
+		if AMBIENT_DEBUG:
+			measured = frame_rate_tracker.measured_rate
+			if measured is not None:
+				logger.info(
+					f"Session fps summary: measured={measured:.1f}Hz, "
+					f"configured={configured_sample_rate:.1f}Hz"
+				)
 		logger.info("Acquisition loop stopped")
 
 

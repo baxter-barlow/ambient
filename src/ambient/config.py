@@ -113,7 +113,7 @@ class ChirpModeConfig:
 	target_range_max_m: float = 5.0  # Maximum detection range
 	target_bins: int = 5  # Number of range bins to track
 	target_threshold: int = 4  # Detection threshold
-	output_mode: int = 5  # 3=PHASE, 5=PHASE_IQ (phase + I/Q range profile)
+	output_mode: int = 5  # 3=PHASE (vitals only), 5=PHASE_IQ (phase + I/Q range profile)
 	motion_output: bool = True  # Include motion detection
 	target_info_output: bool = True  # Include target info
 	detection_timeout_s: float = 0.2  # Timeout for chirp detection command

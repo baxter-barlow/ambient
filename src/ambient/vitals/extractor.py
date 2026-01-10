@@ -94,6 +94,7 @@ class VitalsConfig:
 	rr_filter_order: int = 4
 	min_snr_db: float = 10.0
 	motion_threshold: float = 0.5
+	motion_skip_estimation: bool = True  # Skip HR/RR estimation during motion
 
 
 class VitalsExtractor:
@@ -279,12 +280,17 @@ class ChirpVitalsProcessor:
 		if phase is None:
 			return result
 
-		# Check for motion
-		has_motion = any(b.has_motion for b in phase_output.bins if b.is_valid)
+		# Check for motion - require majority of valid bins to report motion
+		valid_bins = [b for b in phase_output.bins if b.is_valid]
+		motion_count = sum(1 for b in valid_bins if b.has_motion)
+		has_motion = motion_count > len(valid_bins) // 2 if valid_bins else False
 		result.motion_detected = has_motion
 
+		# Skip estimation during motion (configurable)
+		if has_motion and self.config.motion_skip_estimation:
+			return result
+
 		# Compute average magnitude for signal quality
-		valid_bins = [b for b in phase_output.bins if b.is_valid]
 		if valid_bins:
 			avg_magnitude = sum(b.magnitude for b in valid_bins) / len(valid_bins)
 			self._magnitude_buffer.append(avg_magnitude)
@@ -305,10 +311,6 @@ class ChirpVitalsProcessor:
 		# Need minimum samples
 		min_samples = int(self.config.sample_rate_hz * 5)
 		if len(self._phase_buffer) < min_samples:
-			return result
-
-		# Skip if excessive motion
-		if has_motion:
 			return result
 
 		# Extract phase signal
@@ -341,7 +343,9 @@ class ChirpVitalsProcessor:
 		base_quality = (hr_result.confidence + rr_result.confidence) / 2
 		# Boost quality if SNR is good
 		snr_bonus = min(0.1, hr_result.snr_db / 100) if hr_result.snr_db > 0 else 0
-		result.signal_quality = min(1.0, base_quality + snr_bonus)
+		# Soft penalty for high phase instability (motion)
+		stability_penalty = max(0, (result.phase_stability - self.config.motion_threshold) * 0.5)
+		result.signal_quality = max(0, min(1.0, base_quality + snr_bonus - stability_penalty))
 		return result
 
 	def process_frame(self, frame: RadarFrame) -> VitalSigns | None:
@@ -379,3 +383,53 @@ class ChirpVitalsProcessor:
 		"""True when enough samples collected for estimation."""
 		min_samples = int(self.config.sample_rate_hz * 5)
 		return len(self._phase_buffer) >= min_samples
+
+	def update_sample_rate(self, new_rate_hz: float) -> None:
+		"""Update sample rate and reinitialize components.
+
+		This clears buffers and recreates filters/estimators with the new rate.
+		"""
+		if abs(new_rate_hz - self.config.sample_rate_hz) < 0.01:
+			return  # No significant change
+
+		old_rate = self.config.sample_rate_hz
+		self.config.sample_rate_hz = new_rate_hz
+		self._buffer_size = int(self.config.window_seconds * new_rate_hz)
+
+		# Recreate estimators with new sample rate
+		self._hr_estimator = HeartRateEstimator(
+			sample_rate_hz=new_rate_hz,
+			freq_min_hz=self.config.hr_freq_min_hz,
+			freq_max_hz=self.config.hr_freq_max_hz,
+		)
+		self._rr_estimator = RespiratoryRateEstimator(
+			sample_rate_hz=new_rate_hz,
+			freq_min_hz=self.config.rr_freq_min_hz,
+			freq_max_hz=self.config.rr_freq_max_hz,
+		)
+
+		# Recreate filters with new sample rate
+		self._hr_filter = BandpassFilter(
+			sample_rate_hz=new_rate_hz,
+			low_freq_hz=self.config.hr_freq_min_hz,
+			high_freq_hz=self.config.hr_freq_max_hz,
+			order=self.config.hr_filter_order,
+		)
+		self._rr_filter = BandpassFilter(
+			sample_rate_hz=new_rate_hz,
+			low_freq_hz=self.config.rr_freq_min_hz,
+			high_freq_hz=self.config.rr_freq_max_hz,
+			order=self.config.rr_filter_order,
+		)
+
+		# Clear buffers (old data collected at different rate)
+		self._phase_buffer.clear()
+		self._timestamp_buffer.clear()
+		self._magnitude_buffer.clear()
+		self._unwrapper.reset()
+
+		logger.info(
+			"chirp_vitals_sample_rate_updated",
+			old_rate=old_rate,
+			new_rate=new_rate_hz,
+		)

@@ -248,7 +248,19 @@ class DeviceStateMachine:
 							for cmd in chirp_config.to_commands():
 								self._sensor.send_command(cmd, timeout=timeout)
 							# Use ChirpVitalsProcessor for chirp PHASE data
-							self._extractor = ChirpVitalsProcessor()
+							# Pass vitals config from centralized AppConfig
+							from ambient.vitals.extractor import VitalsConfig as ExtractorVitalsConfig
+							vitals_cfg = get_config().vitals
+							extractor_config = ExtractorVitalsConfig(
+								sample_rate_hz=vitals_cfg.sample_rate_hz,
+								window_seconds=vitals_cfg.window_seconds,
+								hr_freq_min_hz=vitals_cfg.hr_freq_min_hz,
+								hr_freq_max_hz=vitals_cfg.hr_freq_max_hz,
+								rr_freq_min_hz=vitals_cfg.rr_freq_min_hz,
+								rr_freq_max_hz=vitals_cfg.rr_freq_max_hz,
+								motion_threshold=vitals_cfg.motion_threshold,
+							)
+							self._extractor = ChirpVitalsProcessor(config=extractor_config)
 						else:
 							reason = detection.error or "no chirp patterns matched"
 							logger.info(f"Standard firmware detected ({reason})")
