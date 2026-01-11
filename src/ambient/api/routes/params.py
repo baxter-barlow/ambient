@@ -69,23 +69,24 @@ async def update_current_params(params: AlgorithmParams):
 	state = get_app_state()
 	state.algorithm_params = params
 
-	# Update extractor if running
-	if state.device.extractor:
-		from ambient.vitals.extractor import VitalsConfig
+	# Update extractor if running (only VitalsExtractor has configurable filters)
+	from ambient.vitals.extractor import VitalsConfig, VitalsExtractor
+	extractor = state.device.extractor
+	if extractor and isinstance(extractor, VitalsExtractor):
 		new_config = VitalsConfig(
-			sample_rate_hz=state.device.extractor.config.sample_rate_hz,
+			sample_rate_hz=extractor.config.sample_rate_hz,
 			window_seconds=params.window_seconds,
 			hr_freq_min_hz=params.hr_low_hz,
 			hr_freq_max_hz=params.hr_high_hz,
 			rr_freq_min_hz=params.rr_low_hz,
 			rr_freq_max_hz=params.rr_high_hz,
 		)
-		state.device.extractor.config = new_config
-		state.device.extractor._buffer_size = int(new_config.window_seconds * new_config.sample_rate_hz)
-		state.device.extractor._hr_filter._low_freq_hz = params.hr_low_hz
-		state.device.extractor._hr_filter._high_freq_hz = params.hr_high_hz
-		state.device.extractor._rr_filter._low_freq_hz = params.rr_low_hz
-		state.device.extractor._rr_filter._high_freq_hz = params.rr_high_hz
+		extractor.config = new_config
+		extractor.buffer_size = int(new_config.window_seconds * new_config.sample_rate_hz)
+		extractor.hr_filter.low_freq_hz = params.hr_low_hz
+		extractor.hr_filter.high_freq_hz = params.hr_high_hz
+		extractor.rr_filter.low_freq_hz = params.rr_low_hz
+		extractor.rr_filter.high_freq_hz = params.rr_high_hz
 
 	# Update pipeline clutter method if changed
 	if state.device.pipeline and params.clutter_method != state.device.pipeline.config.clutter_removal:

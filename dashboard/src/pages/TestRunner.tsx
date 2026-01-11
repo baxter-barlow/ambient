@@ -10,6 +10,12 @@ interface TestModule {
 	hardware_required: boolean
 }
 
+/**
+ * Test Runner following TE design principles:
+ * - Borders as hierarchy
+ * - Monospace for output
+ * - Functional accent colors
+ */
 export default function TestRunner() {
 	const [modules, setModules] = useState<TestModule[]>([])
 	const [selected, setSelected] = useState<string[]>([])
@@ -72,32 +78,32 @@ export default function TestRunner() {
 	}
 
 	return (
-		<div className="space-y-5">
-			<h2 className="text-xl text-text-primary">Test Runner</h2>
+		<div className="space-y-6 max-w-6xl">
+			<h2 className="text-h2 text-ink-primary">Test Runner</h2>
 
 			<div className="grid grid-cols-3 gap-4">
 				{/* Module Selection */}
-				<div className="bg-surface-2 border border-border rounded-card">
+				<div className="bg-bg-secondary border border-border">
 					<div className="px-4 py-3 border-b border-border">
-						<span className="text-base text-text-primary font-medium">Test Modules</span>
+						<span className="text-small font-medium text-ink-primary">Test Modules</span>
 					</div>
 					<div className="p-3 space-y-1">
 						{modules.map(mod => (
 							<label
 								key={mod.name}
-								className="flex items-center gap-3 p-2 rounded hover:bg-surface-3 cursor-pointer transition-colors"
+								className="flex items-center gap-3 p-2 hover:bg-bg-tertiary cursor-pointer transition-all duration-fast"
 							>
 								<input
 									type="checkbox"
 									checked={selected.includes(mod.name)}
 									onChange={() => toggleModule(mod.name)}
-									className="w-4 h-4 accent-accent-teal"
+									className="w-4 h-4 accent-accent-yellow"
 								/>
 								<div>
-									<span className="font-medium text-text-primary">{mod.name}</span>
+									<span className="text-small font-medium text-ink-primary">{mod.name}</span>
 									{mod.hardware_required && (
-										<span className="ml-2 text-micro bg-accent-amber/15 text-accent-amber px-1.5 py-0.5 rounded border border-accent-amber/25 uppercase">
-											hardware
+										<span className="ml-2 text-label border border-accent-orange text-accent-orange px-1 py-0.5 bg-bg-tertiary uppercase font-mono">
+											HW
 										</span>
 									)}
 								</div>
@@ -111,9 +117,9 @@ export default function TestRunner() {
 								type="checkbox"
 								checked={includeHardware}
 								onChange={e => setIncludeHardware(e.target.checked)}
-								className="w-4 h-4 accent-accent-teal"
+								className="w-4 h-4 accent-accent-yellow"
 							/>
-							<span className="text-text-secondary">Include hardware tests</span>
+							<span className="text-small text-ink-secondary">Include hardware tests</span>
 						</label>
 					</div>
 
@@ -129,17 +135,17 @@ export default function TestRunner() {
 				</div>
 
 				{/* Output */}
-				<div className="col-span-2 bg-surface-2 border border-border rounded-card">
+				<div className="col-span-2 bg-bg-secondary border border-border">
 					<div className="px-4 py-3 border-b border-border">
-						<span className="text-base text-text-primary font-medium">Output</span>
+						<span className="text-small font-medium text-ink-primary">Output</span>
 					</div>
 					<div className="p-4">
 						<div
 							ref={outputRef}
-							className="h-96 overflow-auto bg-surface-0 border border-border rounded p-3 font-mono text-sm"
+							className="h-96 overflow-auto bg-bg-primary border border-border p-3 font-mono text-small"
 						>
 							{output.length === 0 ? (
-								<p className="text-text-tertiary">Run tests to see output.</p>
+								<p className="text-ink-muted">Run tests to see output.</p>
 							) : (
 								output.map((line, i) => (
 									<div
@@ -148,8 +154,8 @@ export default function TestRunner() {
 											line.includes('PASSED') ? 'text-accent-green' :
 											line.includes('FAILED') ? 'text-accent-red' :
 											line.includes('ERROR') ? 'text-accent-red' :
-											line.includes('SKIPPED') ? 'text-accent-amber' :
-											'text-text-secondary'
+											line.includes('SKIPPED') ? 'text-accent-orange' :
+											'text-ink-secondary'
 										)}
 									>
 										{line || '\u00A0'}

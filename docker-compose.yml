@@ -31,12 +31,15 @@ services:
       - AMBIENT_DATA_PORT=${AMBIENT_DATA_PORT:-/dev/ttyUSB1}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     # USB serial device passthrough
+    # Configure via environment variables or .env file:
+    #   AMBIENT_CLI_PORT=/dev/ttyUSB0 (Linux) or /dev/cu.usbserial-0001 (macOS)
+    #   AMBIENT_DATA_PORT=/dev/ttyUSB1 (Linux) or /dev/cu.usbserial-0002 (macOS)
     devices:
-      - /dev/ttyUSB0:/dev/ttyUSB0
-      - /dev/ttyUSB1:/dev/ttyUSB1
+      - ${AMBIENT_CLI_PORT:-/dev/ttyUSB0}:${AMBIENT_CLI_PORT:-/dev/ttyUSB0}
+      - ${AMBIENT_DATA_PORT:-/dev/ttyUSB1}:${AMBIENT_DATA_PORT:-/dev/ttyUSB1}
     # Alternative: dynamic USB detection (uncomment if devices change)
     # device_cgroup_rules:
-    #   - 'c 188:* rmw'  # USB serial major number
+    #   - 'c 188:* rmw'  # USB serial major number (Linux only)
     # volumes:
     #   - /dev:/dev:ro
     privileged: false
@@ -67,8 +70,8 @@ services:
       - AMBIENT_CLI_PORT=${AMBIENT_CLI_PORT:-/dev/ttyUSB0}
       - AMBIENT_DATA_PORT=${AMBIENT_DATA_PORT:-/dev/ttyUSB1}
     devices:
-      - /dev/ttyUSB0:/dev/ttyUSB0
-      - /dev/ttyUSB1:/dev/ttyUSB1
+      - ${AMBIENT_CLI_PORT:-/dev/ttyUSB0}:${AMBIENT_CLI_PORT:-/dev/ttyUSB0}
+      - ${AMBIENT_DATA_PORT:-/dev/ttyUSB1}:${AMBIENT_DATA_PORT:-/dev/ttyUSB1}
     group_add:
       - dialout
     restart: unless-stopped
@@ -97,8 +100,8 @@ services:
       - AMBIENT_CLI_PORT=${AMBIENT_CLI_PORT:-/dev/ttyUSB0}
       - AMBIENT_DATA_PORT=${AMBIENT_DATA_PORT:-/dev/ttyUSB1}
     devices:
-      - /dev/ttyUSB0:/dev/ttyUSB0
-      - /dev/ttyUSB1:/dev/ttyUSB1
+      - ${AMBIENT_CLI_PORT:-/dev/ttyUSB0}:${AMBIENT_CLI_PORT:-/dev/ttyUSB0}
+      - ${AMBIENT_DATA_PORT:-/dev/ttyUSB1}:${AMBIENT_DATA_PORT:-/dev/ttyUSB1}
     group_add:
       - dialout
     profiles:

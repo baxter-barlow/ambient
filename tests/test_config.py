@@ -21,8 +21,9 @@ from ambient.config import (
 class TestSensorConfig:
 	def test_defaults(self):
 		config = SensorConfig()
-		assert config.cli_port == "/dev/ttyUSB0"
-		assert config.data_port == "/dev/ttyUSB1"
+		# Empty ports trigger auto-detection
+		assert config.cli_port == ""
+		assert config.data_port == ""
 		assert config.cli_baud == 115200
 		assert config.data_baud == 921600
 		assert config.auto_reconnect is False
@@ -71,25 +72,23 @@ class TestAppConfig:
 		assert config.api.port == 9000
 		assert config.api.log_level == "DEBUG"
 
-	def test_from_file(self):
+	def test_from_file(self, tmp_path):
+		test_data_dir = tmp_path / "ambient_data"
 		config_data = {
 			"sensor": {"cli_port": "/dev/custom0", "auto_reconnect": True},
 			"api": {"port": 8888, "log_level": "WARNING"},
-			"paths": {"data_dir": "/tmp/ambient"},
+			"paths": {"data_dir": str(test_data_dir)},
 		}
 
-		with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-			json.dump(config_data, f)
-			f.flush()
+		config_file = tmp_path / "config.json"
+		config_file.write_text(json.dumps(config_data))
 
-			config = AppConfig.from_file(f.name)
-			assert config.sensor.cli_port == "/dev/custom0"
-			assert config.sensor.auto_reconnect is True
-			assert config.api.port == 8888
-			assert config.api.log_level == "WARNING"
-			assert config.paths.data_dir == Path("/tmp/ambient")
-
-		os.unlink(f.name)
+		config = AppConfig.from_file(config_file)
+		assert config.sensor.cli_port == "/dev/custom0"
+		assert config.sensor.auto_reconnect is True
+		assert config.api.port == 8888
+		assert config.api.log_level == "WARNING"
+		assert config.paths.data_dir == test_data_dir
 
 	def test_ensure_dirs(self, tmp_path):
 		config = AppConfig()

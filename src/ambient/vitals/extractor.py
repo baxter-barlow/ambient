@@ -131,6 +131,26 @@ class VitalsExtractor:
 		)
 		logger.info("vitals_extractor_init", sample_rate=self.config.sample_rate_hz)
 
+	@property
+	def buffer_size(self) -> int:
+		"""Current buffer size in samples."""
+		return self._buffer_size
+
+	@buffer_size.setter
+	def buffer_size(self, value: int) -> None:
+		"""Set buffer size."""
+		self._buffer_size = value
+
+	@property
+	def hr_filter(self) -> BandpassFilter:
+		"""Heart rate bandpass filter."""
+		return self._hr_filter
+
+	@property
+	def rr_filter(self) -> BandpassFilter:
+		"""Respiratory rate bandpass filter."""
+		return self._rr_filter
+
 	def process(self, phase_data: NDArray[np.float32] | float | None, timestamp: float = 0.0) -> VitalSigns:
 		result = VitalSigns(timestamp=timestamp)
 

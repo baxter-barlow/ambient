@@ -16,7 +16,7 @@ This replaces the Out-of-Box (OOB) demo which only outputs magnitude data.
 
 - IWR6843AOPEVM board
 - USB cable (micro-USB)
-- Windows PC (UniFlash is Windows-only for mmWave devices)
+- UniFlash tool (available for Linux, macOS, and Windows)
 - TI account (free registration)
 
 ## Step 1: Download TI Radar Toolbox
@@ -24,7 +24,7 @@ This replaces the Out-of-Box (OOB) demo which only outputs magnitude data.
 1. Go to https://www.ti.com/tool/RADAR-TOOLBOX
 2. Click "Download" and sign in with your TI account
 3. Download the latest version (e.g., `radar_toolbox_1_20_00_11`)
-4. Extract to a known location (e.g., `C:\ti\radar_toolbox`)
+4. Extract to a known location (e.g., `~/ti/radar_toolbox`)
 
 ## Step 2: Locate the Firmware Binary
 
@@ -167,7 +167,7 @@ radar_toolbox/source/ti/examples/Out_Of_Box_Demo/prebuilt_binaries/
 ### "No device detected" in UniFlash
 - Verify SOP jumpers are set for flash mode
 - Try a different USB cable
-- Check Device Manager (Windows) for XDS110
+- Check for XDS110 device (`lsusb | grep XDS` on Linux, System Information on macOS)
 
 ### Flash programming fails
 - Ensure board is powered via USB (not just JTAG)

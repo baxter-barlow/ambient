@@ -1,12 +1,12 @@
 """Device control API routes."""
 from __future__ import annotations
 
-import glob
 import logging
 
 import serial
 from fastapi import APIRouter, HTTPException
 
+from ...sensor.ports import list_serial_ports
 from ..schemas import ConnectRequest, DeviceStatus, PortStatus, PortVerifyRequest, PortVerifyResult, SerialPort
 from ..state import get_app_state
 
@@ -23,15 +23,21 @@ async def get_status():
 
 @router.get("/ports", response_model=list[SerialPort])
 async def list_ports():
-	"""List available serial ports."""
+	"""List available serial ports.
+
+	Works cross-platform: Linux and macOS.
+	Returns TI radar devices first if detected.
+	"""
 	ports = []
 
-	# Check /dev/ttyUSB* and /dev/ttyACM*
-	for pattern in ["/dev/ttyUSB*", "/dev/ttyACM*"]:
-		for path in sorted(glob.glob(pattern)):
-			ports.append(SerialPort(device=path, description=path.split("/")[-1]))
+	for port_info in list_serial_ports():
+		ports.append(SerialPort(
+			device=port_info.device,
+			description=port_info.description,
+		))
 
-	return ports
+	# Sort TI devices first, then by device path
+	return sorted(ports, key=lambda p: (not any(x in p.description for x in ["XDS", "TI", "Texas"]), p.device))
 
 
 @router.post("/verify-ports", response_model=PortVerifyResult)

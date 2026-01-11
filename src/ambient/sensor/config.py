@@ -4,12 +4,31 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .ports import get_default_ports
+
+
+def _default_cli_port() -> str:
+	"""Get platform-appropriate default CLI port."""
+	return get_default_ports()[0]
+
+
+def _default_data_port() -> str:
+	"""Get platform-appropriate default data port."""
+	return get_default_ports()[1]
+
 
 @dataclass
 class SerialConfig:
-	"""Serial port configuration."""
-	cli_port: str = "/dev/ttyUSB0"
-	data_port: str = "/dev/ttyUSB1"
+	"""Serial port configuration.
+
+	Default ports are platform-specific:
+	- Linux: /dev/ttyUSB0, /dev/ttyUSB1, /dev/ttyACM0, /dev/ttyACM1
+	- macOS: /dev/cu.usbserial-*, /dev/cu.usbmodem*
+
+	Use empty strings to trigger auto-detection.
+	"""
+	cli_port: str = ""  # Empty triggers auto-detection
+	data_port: str = ""  # Empty triggers auto-detection
 	cli_baud: int = 115200
 	data_baud: int = 921600
 	timeout: float = 1.0

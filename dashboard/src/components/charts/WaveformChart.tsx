@@ -9,6 +9,14 @@ interface Props {
 	height?: number
 }
 
+// TE color palette for light theme
+const COLORS = {
+	breath: '#1976D2',      // accent-blue
+	heart: '#E53935',       // accent-red
+	grid: '#E2E2DF',        // bg-tertiary
+	axis: '#4A4A4A',        // ink-secondary
+}
+
 export default function WaveformChart({
 	breathingWaveform,
 	heartWaveform,
@@ -31,31 +39,31 @@ export default function WaveformChart({
 			},
 			axes: [
 				{
-					stroke: '#6b7280',
-					grid: { stroke: '#2a2d32', width: 1 },
-					ticks: { stroke: '#2a2d32' },
-					font: '9px JetBrains Mono, monospace',
+					stroke: COLORS.axis,
+					grid: { stroke: COLORS.grid, width: 1 },
+					ticks: { stroke: COLORS.grid },
+					font: '10px IBM Plex Mono, monospace',
 					label: 'Sample',
 					labelSize: 12,
 				},
 				{
 					scale: 'breath',
-					stroke: '#3b82f6',
-					grid: { stroke: '#2a2d32', width: 1 },
-					ticks: { stroke: '#2a2d32' },
+					stroke: COLORS.breath,
+					grid: { stroke: COLORS.grid, width: 1 },
+					ticks: { stroke: COLORS.grid },
 					label: 'Breathing',
 					labelSize: 12,
-					font: '9px JetBrains Mono, monospace',
+					font: '10px IBM Plex Mono, monospace',
 					side: 3,
 				},
 				{
 					scale: 'heart',
-					stroke: '#ef4444',
+					stroke: COLORS.heart,
 					grid: { show: false },
-					ticks: { stroke: '#2a2d32' },
+					ticks: { stroke: COLORS.grid },
 					label: 'Heart',
 					labelSize: 12,
-					font: '9px JetBrains Mono, monospace',
+					font: '10px IBM Plex Mono, monospace',
 					side: 1,
 				},
 			],
@@ -64,14 +72,14 @@ export default function WaveformChart({
 				{
 					label: 'Breathing',
 					scale: 'breath',
-					stroke: '#3b82f6',
+					stroke: COLORS.breath,
 					width: 1.5,
 					points: { show: false },
 				},
 				{
 					label: 'Heart',
 					scale: 'heart',
-					stroke: '#ef4444',
+					stroke: COLORS.heart,
 					width: 1.5,
 					points: { show: false },
 				},
@@ -110,10 +118,10 @@ export default function WaveformChart({
 	if (!hasData) {
 		return (
 			<div
-				className="bg-surface-2 border border-border rounded-card flex items-center justify-center"
+				className="bg-bg-secondary border border-border flex items-center justify-center"
 				style={{ width, height: height + 60 }}
 			>
-				<span className="text-text-tertiary text-sm">
+				<span className="text-ink-muted text-small">
 					Firmware waveforms not available (requires Vital Signs firmware)
 				</span>
 			</div>
@@ -121,20 +129,20 @@ export default function WaveformChart({
 	}
 
 	return (
-		<div className="bg-surface-2 border border-border rounded-card overflow-hidden">
+		<div className="bg-bg-secondary border border-border">
 			<div className="flex justify-between items-center px-4 py-3 border-b border-border">
-				<span className="text-base text-text-primary font-medium">Vital Signs Waveforms</span>
-				<div className="flex items-center gap-4 text-micro">
-					<span className="flex items-center gap-1.5">
-						<span className="w-4 h-0.5 bg-accent-blue rounded"></span>
-						<span className="text-accent-blue">Breathing</span>
+				<span className="text-small font-medium text-ink-primary">Vital Signs Waveforms</span>
+				<div className="flex items-center gap-4 text-label">
+					<span className="flex items-center gap-2">
+						<span className="w-4 h-[2px] bg-accent-blue"></span>
+						<span className="text-accent-blue font-mono">Breathing</span>
 					</span>
-					<span className="flex items-center gap-1.5">
-						<span className="w-4 h-0.5 bg-accent-red rounded"></span>
-						<span className="text-accent-red">Heart</span>
+					<span className="flex items-center gap-2">
+						<span className="w-4 h-[2px] bg-accent-red"></span>
+						<span className="text-accent-red font-mono">Heart</span>
 					</span>
-					<span className="px-1.5 py-0.5 rounded bg-accent-purple/15 text-accent-purple border border-accent-purple/25 text-micro uppercase">
-						Firmware
+					<span className="px-2 py-1 border border-accent-purple text-accent-purple bg-bg-tertiary text-label font-mono uppercase">
+						FW
 					</span>
 				</div>
 			</div>

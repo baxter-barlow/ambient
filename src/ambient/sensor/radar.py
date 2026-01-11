@@ -8,10 +8,10 @@ from pathlib import Path
 from threading import Event, Thread
 
 import serial
-import serial.tools.list_ports
 
 from .config import ChirpConfig, SerialConfig, load_config_file
 from .frame import FrameBuffer, RadarFrame
+from .ports import find_ti_radar_ports, get_permission_help, get_platform
 
 logger = logging.getLogger(__name__)
 
@@ -55,22 +55,11 @@ class RadarSensor:
 
 	@staticmethod
 	def find_ports() -> dict[str, str]:
-		"""Find radar serial ports. Returns {'cli': ..., 'data': ...}."""
-		ports = list(serial.tools.list_ports.comports())
+		"""Find radar serial ports. Returns {'cli': ..., 'data': ...}.
 
-		# Look for XDS or ACM devices (TI evaluation boards)
-		ti_ports = [p for p in ports if "XDS" in (p.description or "") or "ACM" in p.device]
-		if len(ti_ports) >= 2:
-			ti_ports.sort(key=lambda p: p.device)
-			return {"cli": ti_ports[0].device, "data": ti_ports[1].device}
-
-		# Fallback to ttyUSB devices
-		usb_ports = [p for p in ports if "ttyUSB" in p.device]
-		if len(usb_ports) >= 2:
-			usb_ports.sort(key=lambda p: p.device)
-			return {"cli": usb_ports[0].device, "data": usb_ports[1].device}
-
-		return {}
+		Uses cross-platform detection that works on Linux and macOS.
+		"""
+		return find_ti_radar_ports()
 
 	def connect(self) -> None:
 		"""Open serial connections to the radar."""
@@ -84,11 +73,12 @@ class RadarSensor:
 		if not cli_port or not data_port or cli_port == data_port:
 			ports = self.find_ports()
 			if not ports:
+				platform = get_platform()
 				raise RuntimeError(
-					"Could not find radar ports. Check:\n"
+					f"Could not find radar ports on {platform}. Check:\n"
 					"  1. USB cable is connected\n"
-					"  2. User is in 'dialout' group\n"
-					"  3. Device is powered on"
+					"  2. Device is powered on\n"
+					f"  3. {get_permission_help().split(chr(10))[1].strip() if platform != 'unknown' else 'Check port permissions'}"
 				)
 			cli_port = ports["cli"]
 			data_port = ports["data"]

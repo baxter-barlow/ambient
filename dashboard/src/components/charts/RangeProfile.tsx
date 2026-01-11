@@ -10,6 +10,7 @@ interface Props {
 	width?: number
 	height?: number
 	isLoading?: boolean
+	compact?: boolean
 }
 
 interface CursorData {
@@ -17,7 +18,16 @@ interface CursorData {
 	value: number
 }
 
-export default function RangeProfile({ data, source, isChirpFirmware, width = 600, height = 300, isLoading = false }: Props) {
+// TE color palette for light theme
+const COLORS = {
+	accent: '#1976D2',      // accent-blue for range profile
+	grid: '#E2E2DF',        // bg-tertiary
+	axis: '#4A4A4A',        // ink-secondary
+	background: '#ECECEA',  // bg-secondary
+	cursor: '#111111',      // ink-primary
+}
+
+export default function RangeProfile({ data, source, isChirpFirmware, width = 600, height = 300, isLoading = false, compact = false }: Props) {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const chartRef = useRef<uPlot | null>(null)
 	const [yRange, setYRange] = useState<[number, number]>([0, 1])
@@ -71,10 +81,10 @@ export default function RangeProfile({ data, source, isChirpFirmware, width = 60
 				y: true,
 				points: {
 					show: true,
-					size: 8,
-					stroke: '#00a896',
-					fill: '#1e2024',
-					width: 2,
+					size: 6,
+					stroke: COLORS.cursor,
+					fill: COLORS.background,
+					width: 1.5,
 				},
 			},
 			hooks: {
@@ -82,28 +92,28 @@ export default function RangeProfile({ data, source, isChirpFirmware, width = 60
 			},
 			axes: [
 				{
-					stroke: '#6b7280',
-					grid: { stroke: '#2a2d32', width: 1 },
-					ticks: { stroke: '#2a2d32' },
+					stroke: COLORS.axis,
+					grid: { stroke: COLORS.grid, width: 1 },
+					ticks: { stroke: COLORS.grid },
 					label: 'Range Bin',
 					labelSize: 12,
-					font: '9px JetBrains Mono, monospace',
+					font: '10px IBM Plex Mono, monospace',
 				},
 				{
-					stroke: '#6b7280',
-					grid: { stroke: '#2a2d32', width: 1 },
-					ticks: { stroke: '#2a2d32' },
+					stroke: COLORS.axis,
+					grid: { stroke: COLORS.grid, width: 1 },
+					ticks: { stroke: COLORS.grid },
 					label: 'Magnitude (dB)',
 					labelSize: 12,
-					font: '9px JetBrains Mono, monospace',
+					font: '10px IBM Plex Mono, monospace',
 				},
 			],
 			series: [
 				{},
 				{
-					stroke: '#00a896',
+					stroke: COLORS.accent,
 					width: 1.5,
-					fill: 'rgba(0, 168, 150, 0.15)',
+					fill: 'rgba(25, 118, 210, 0.1)',
 				},
 			],
 		}
@@ -131,17 +141,17 @@ export default function RangeProfile({ data, source, isChirpFirmware, width = 60
 	}, [data])
 
 	const cursorReadout = cursorData ? (
-		<span className="text-micro font-mono text-accent-teal">
+		<span className="text-label font-mono text-accent-blue">
 			Bin {cursorData.bin}: {cursorData.value.toFixed(1)} dB
 		</span>
 	) : null
 
 	// Source badge for data origin
 	const sourceBadge = source ? (
-		<span className={`px-1.5 py-0.5 rounded text-micro font-semibold uppercase tracking-wide ${
+		<span className={`px-2 py-1 text-label font-mono uppercase border ${
 			source === 'iq'
-				? 'bg-accent-teal/15 text-accent-teal border border-accent-teal/25'
-				: 'bg-accent-green/15 text-accent-green border border-accent-green/25'
+				? 'border-accent-blue text-accent-blue bg-bg-tertiary'
+				: 'border-accent-green text-accent-green bg-bg-tertiary'
 		}`}>
 			{source === 'iq' ? 'I/Q' : 'TLV'}
 		</span>
@@ -158,10 +168,10 @@ export default function RangeProfile({ data, source, isChirpFirmware, width = 60
 			subtitle={
 				<>
 					{sourceBadge}
-					{sourceBadge && (cursorReadout || stats) && <span className="mx-2 text-border">|</span>}
+					{sourceBadge && (cursorReadout || stats) && <span className="mx-2 text-ink-muted">|</span>}
 					{cursorReadout}
-					{cursorReadout && stats && <span className="mx-2 text-border">|</span>}
-					{stats && <span>{stats.bins} bins | max: {stats.max} dB | mean: {stats.mean} dB</span>}
+					{cursorReadout && stats && <span className="mx-2 text-ink-muted">|</span>}
+					{stats && <span className="text-label font-mono text-ink-secondary">{stats.bins} bins | max: {stats.max} dB | mean: {stats.mean} dB</span>}
 				</>
 			}
 			isLoading={isLoading}
@@ -170,6 +180,7 @@ export default function RangeProfile({ data, source, isChirpFirmware, width = 60
 			loadingMessage="Loading range profile..."
 			width={width}
 			height={height}
+			compact={compact}
 		>
 			<div ref={containerRef} />
 		</ChartContainer>

@@ -13,11 +13,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from ambient.sensor.config import SerialConfig
+from ambient.sensor.ports import find_ti_radar_ports, get_default_ports
 from ambient.sensor.radar import RadarSensor
 from ambient.vitals.extractor import ChirpVitalsProcessor, VitalsConfig
 
-CLI_PORT = "/dev/ttyUSB0"
-DATA_PORT = "/dev/ttyUSB1"
 CONFIG_FILE = Path(__file__).parent.parent / "configs" / "vital_signs_chirp.cfg"
 
 
@@ -31,7 +30,16 @@ def main():
     print("Chirp Vital Signs Test")
     print("=" * 60)
 
-    config = SerialConfig(cli_port=CLI_PORT, data_port=DATA_PORT)
+    # Auto-detect ports
+    ports = find_ti_radar_ports()
+    if not ports:
+        cli_port, data_port = get_default_ports()
+        print(f"Warning: Could not auto-detect ports, using defaults: {cli_port}, {data_port}")
+    else:
+        cli_port, data_port = ports["cli"], ports["data"]
+        print(f"Detected ports: CLI={cli_port}, Data={data_port}")
+
+    config = SerialConfig(cli_port=cli_port, data_port=data_port)
     sensor = RadarSensor(config=config)
 
     # Initialize vitals processor (20 Hz sample rate, 10 sec window)
@@ -39,7 +47,7 @@ def main():
     vitals_processor = ChirpVitalsProcessor(config=vitals_config)
 
     try:
-        print(f"Connecting to {CLI_PORT} / {DATA_PORT}...", flush=True)
+        print(f"Connecting to {cli_port} / {data_port}...", flush=True)
         sensor.connect()
         print("Connected", flush=True)
 

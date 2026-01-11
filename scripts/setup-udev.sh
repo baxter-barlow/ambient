@@ -1,11 +1,63 @@
 #!/bin/bash
-# Setup udev rules for TI IWR6843AOPEVM radar on the HOST system
-# This script must be run on the host, not inside a container
+# Setup device permissions for TI IWR6843AOPEVM radar
+# Platform-aware: installs udev rules on Linux, provides guidance on macOS
 #
-# Usage: sudo ./scripts/setup-udev.sh
+# Usage:
+#   Linux: sudo ./scripts/setup-udev.sh
+#   macOS: ./scripts/setup-udev.sh (no sudo needed, just shows guidance)
 
 set -e
 
+# Detect platform
+detect_platform() {
+    case "$(uname -s)" in
+        Linux*)     echo "linux";;
+        Darwin*)    echo "macos";;
+        *)          echo "unsupported";;
+    esac
+}
+
+PLATFORM=$(detect_platform)
+
+# Platform-specific setup
+case "$PLATFORM" in
+    macos)
+        echo "=== macOS Serial Port Setup ==="
+        echo ""
+        echo "Good news: macOS doesn't require special permissions for USB serial devices."
+        echo "The TI radar should work automatically when connected."
+        echo ""
+        echo "Device names on macOS:"
+        echo "  - /dev/cu.usbserial-*  (FTDI-based adapters)"
+        echo "  - /dev/cu.usbmodem*    (USB CDC devices)"
+        echo ""
+        echo "Troubleshooting:"
+        echo "  1. If the device doesn't appear, try unplugging and reconnecting"
+        echo "  2. Check System Settings > Privacy & Security for any blocked drivers"
+        echo "  3. Some FTDI drivers may need to be installed from ftdichip.com"
+        echo "  4. For Apple Silicon Macs, ensure Rosetta is installed if using older drivers"
+        echo ""
+        echo "List available ports:"
+        echo "  python3 -c \"import serial.tools.list_ports; print([p.device for p in serial.tools.list_ports.comports()])\""
+        echo ""
+        exit 0
+        ;;
+    unsupported)
+        echo "=== Unsupported Platform ==="
+        echo ""
+        echo "Ambient SDK officially supports Linux and macOS only."
+        echo ""
+        echo "For Windows users, please use WSL2 (Windows Subsystem for Linux):"
+        echo "  1. Install WSL2: https://learn.microsoft.com/en-us/windows/wsl/install"
+        echo "  2. Install Ubuntu 22.04 from Microsoft Store"
+        echo "  3. For USB device access, use usbipd-win:"
+        echo "     https://learn.microsoft.com/en-us/windows/wsl/connect-usb"
+        echo ""
+        exit 1
+        ;;
+esac
+
+# Linux-specific udev setup below
 RULES_FILE="/etc/udev/rules.d/99-ti-radar.rules"
 
 # Check if running as root
@@ -14,6 +66,8 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+echo "=== Linux udev Rules Setup ==="
+echo ""
 echo "Installing udev rules for TI IWR6843AOPEVM..."
 
 # Create udev rules

@@ -13,7 +13,7 @@ import numpy as np
 
 from ambient.config import get_config
 from ambient.utils.profiler import get_profiler
-from ambient.vitals.extractor import ChirpVitalsProcessor, MultiPatientVitalsManager
+from ambient.vitals.extractor import ChirpVitalsProcessor, MultiPatientVitalsManager, VitalsExtractor
 from ambient.vitals.extractor import VitalsConfig as ExtractorVitalsConfig
 from ambient.vitals.extractor import VitalSigns as VitalSignsData
 
@@ -80,7 +80,7 @@ def _create_extractor_config() -> ExtractorVitalsConfig:
 class VitalsContext:
 	"""Context for vitals processing in acquisition loop."""
 
-	extractor: object  # VitalsExtractor or ChirpVitalsProcessor
+	extractor: VitalsExtractor | ChirpVitalsProcessor
 	chirp_fallback: ChirpVitalsProcessor | None = None
 	multi_patient_manager: MultiPatientVitalsManager | None = None
 	debug_logged: bool = False
@@ -109,11 +109,11 @@ def _process_frame_vitals(
 	# Chirp phase data processing
 	if frame.chirp_phase is not None:
 		if isinstance(ctx.extractor, ChirpVitalsProcessor):
-			vitals = ctx.extractor.process_frame(frame)
+			chirp_vitals = ctx.extractor.process_frame(frame)
 			# Debug logging at 100-frame intervals
 			if AMBIENT_DEBUG and frame_count % 100 == 0:
-				_log_vitals_debug(vitals, ctx.extractor.buffer_fullness)
-			return vitals
+				_log_vitals_debug(chirp_vitals, ctx.extractor.buffer_fullness)
+			return chirp_vitals
 		else:
 			# Fallback: create ChirpVitalsProcessor on first use
 			if ctx.chirp_fallback is None:

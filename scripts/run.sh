@@ -28,7 +28,7 @@ echo ""
 
 cd "$PROJECT_ROOT"
 
-if [[ "$MODE" == "prod" ]]; then
+if [ "$MODE" = "prod" ]; then
     # Production mode: serve built dashboard from API
     echo "Starting API server (production mode)..."
     echo "Dashboard: http://localhost:$API_PORT"

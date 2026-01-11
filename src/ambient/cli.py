@@ -30,18 +30,46 @@ console = Console()
 
 # Default paths - resolve relative to package installation
 def _get_configs_dir() -> Path:
-	"""Find the configs directory."""
-	# Check common locations
-	candidates = [
-		Path.cwd() / "configs",  # Current working directory
-		Path(__file__).parent.parent.parent.parent / "configs",  # Relative to package
-		Path.home() / ".ambient" / "configs",  # User home
-	]
-	for p in candidates:
-		if p.exists():
-			return p
-	# Default to cwd/configs even if it doesn't exist
-	return Path.cwd() / "configs"
+	"""Find the configs directory.
+
+	Search order:
+	1. AMBIENT_CONFIG_DIR environment variable
+	2. Current working directory (for development)
+	3. Package installation directory (editable install)
+	4. User home directory (~/.ambient/configs)
+	5. Falls back to cwd/configs
+	"""
+	import os
+
+	# 1. Environment variable override
+	if env_dir := os.environ.get("AMBIENT_CONFIG_DIR"):
+		env_path = Path(env_dir)
+		if env_path.exists():
+			return env_path
+
+	# 2. Current working directory (development mode)
+	cwd_configs = Path.cwd() / "configs"
+	if cwd_configs.exists():
+		return cwd_configs
+
+	# 3. Package installation directory (works with pip install -e .)
+	# Walk up from this file to find project root
+	pkg_dir = Path(__file__).parent  # src/ambient/
+	for _ in range(5):  # Don't go too far up
+		candidate = pkg_dir / "configs"
+		if candidate.exists():
+			return candidate
+		pkg_dir = pkg_dir.parent
+		if pkg_dir == pkg_dir.parent:  # Reached filesystem root
+			break
+
+	# 4. User home directory
+	home_configs = Path.home() / ".ambient" / "configs"
+	if home_configs.exists():
+		return home_configs
+
+	# 5. Default to cwd/configs (will be created if needed)
+	return cwd_configs
 
 
 CONFIGS_DIR = _get_configs_dir()
@@ -56,8 +84,8 @@ def main() -> None:
 
 
 @main.command()
-@click.option("--cli-port", default="/dev/ttyUSB0", help="CLI serial port")
-@click.option("--data-port", default="/dev/ttyUSB1", help="Data serial port")
+@click.option("--cli-port", default="", help="CLI serial port (auto-detect if empty)")
+@click.option("--data-port", default="", help="Data serial port (auto-detect if empty)")
 @click.option("--config", type=click.Path(exists=True), help="Chirp config file")
 @click.option("-o", "--output", type=click.Path(), help="Output file (.h5 or .parquet)")
 @click.option("-d", "--duration", type=float, default=0, help="Recording duration (0=unlimited)")
@@ -140,8 +168,8 @@ def capture(cli_port: str, data_port: str, config: str | None, output: str | Non
 
 
 @main.command()
-@click.option("--cli-port", default="/dev/ttyUSB0", help="CLI serial port")
-@click.option("--data-port", default="/dev/ttyUSB1", help="Data serial port")
+@click.option("--cli-port", default="", help="CLI serial port (auto-detect if empty)")
+@click.option("--data-port", default="", help="Data serial port (auto-detect if empty)")
 @click.option("--config", type=click.Path(exists=True), help="Chirp config file")
 def monitor(cli_port: str, data_port: str, config: str | None) -> None:
 	"""Live monitoring with visualization."""
@@ -188,8 +216,8 @@ def monitor(cli_port: str, data_port: str, config: str | None) -> None:
 
 
 @main.command()
-@click.option("--cli-port", default="/dev/ttyUSB0", help="CLI serial port")
-@click.option("--data-port", default="/dev/ttyUSB1", help="Data serial port")
+@click.option("--cli-port", default="", help="CLI serial port (auto-detect if empty)")
+@click.option("--data-port", default="", help="Data serial port (auto-detect if empty)")
 def info(cli_port: str, data_port: str) -> None:
 	"""Show sensor information."""
 	from ambient.sensor import RadarSensor
@@ -218,8 +246,8 @@ def info(cli_port: str, data_port: str) -> None:
 
 
 @main.command()
-@click.option("--cli-port", default="/dev/ttyUSB0", help="CLI serial port")
-@click.option("--data-port", default="/dev/ttyUSB1", help="Data serial port")
+@click.option("--cli-port", default="", help="CLI serial port (auto-detect if empty)")
+@click.option("--data-port", default="", help="Data serial port (auto-detect if empty)")
 def status(cli_port: str, data_port: str) -> None:
 	"""Quick device status check."""
 	from pathlib import Path
@@ -339,7 +367,7 @@ def config_show(name: str) -> None:
 
 @config.command("validate")
 @click.argument("name")
-@click.option("--cli-port", default="/dev/ttyUSB0", help="CLI serial port")
+@click.option("--cli-port", default="", help="CLI serial port (auto-detect if empty)")
 def config_validate(name: str, cli_port: str) -> None:
 	"""Validate a configuration by sending to sensor (dry run)."""
 	from ambient.sensor.config import load_config_file
@@ -460,8 +488,8 @@ def profile_delete(name: str) -> None:
 
 @profile.command("apply")
 @click.argument("name")
-@click.option("--cli-port", default="/dev/ttyUSB0", help="CLI serial port")
-@click.option("--data-port", default="/dev/ttyUSB1", help="Data serial port")
+@click.option("--cli-port", default="", help="CLI serial port (auto-detect if empty)")
+@click.option("--data-port", default="", help="Data serial port (auto-detect if empty)")
 def profile_apply(name: str, cli_port: str, data_port: str) -> None:
 	"""Apply a saved profile to the sensor."""
 	from ambient.sensor import RadarSensor
@@ -490,8 +518,8 @@ def profile_apply(name: str, cli_port: str, data_port: str) -> None:
 
 
 @main.command()
-@click.option("--cli-port", default="/dev/ttyUSB0", help="CLI serial port")
-@click.option("--data-port", default="/dev/ttyUSB1", help="Data serial port")
+@click.option("--cli-port", default="", help="CLI serial port (auto-detect if empty)")
+@click.option("--data-port", default="", help="Data serial port (auto-detect if empty)")
 def detect(cli_port: str, data_port: str) -> None:
 	"""Detect and identify connected radar firmware."""
 	from ambient.sensor import RadarSensor
@@ -528,7 +556,7 @@ def detect(cli_port: str, data_port: str) -> None:
 
 
 @main.command()
-@click.option("--cli-port", default="/dev/ttyUSB0", help="CLI serial port")
+@click.option("--cli-port", default="", help="CLI serial port (auto-detect if empty)")
 def reset(cli_port: str) -> None:
 	"""Send sensor stop and flush commands (soft reset)."""
 	import serial

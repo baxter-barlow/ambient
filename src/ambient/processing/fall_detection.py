@@ -132,7 +132,7 @@ class TrackHistory:
 		if not recent_heights:
 			return self.heights[-1], self.heights[-1], self.heights[-1]
 
-		return min(recent_heights), max(recent_heights), np.mean(recent_heights)
+		return min(recent_heights), max(recent_heights), float(np.mean(recent_heights))
 
 	def get_velocity_magnitude(self) -> float:
 		"""Get current velocity magnitude."""

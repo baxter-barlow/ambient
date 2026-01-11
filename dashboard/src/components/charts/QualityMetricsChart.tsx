@@ -22,6 +22,16 @@ interface CursorData {
 	quality: number
 }
 
+// TE color palette for light theme
+const COLORS = {
+	hr: '#E53935',          // accent-red
+	rr: '#1976D2',          // accent-blue
+	stability: '#F57C00',   // accent-orange
+	quality: '#2E7D32',     // accent-green
+	grid: '#E2E2DF',        // bg-tertiary
+	axis: '#4A4A4A',        // ink-secondary
+}
+
 export default function QualityMetricsChart({
 	timestamps,
 	hrSnrDb,
@@ -76,7 +86,7 @@ export default function QualityMetricsChart({
 				points: {
 					show: true,
 					size: 6,
-					width: 1,
+					width: 1.5,
 				},
 			},
 			hooks: {
@@ -84,29 +94,29 @@ export default function QualityMetricsChart({
 			},
 			axes: [
 				{
-					stroke: '#6b7280',
-					grid: { stroke: '#2a2d32' },
-					ticks: { stroke: '#2a2d32' },
-					font: '9px JetBrains Mono, monospace',
+					stroke: COLORS.axis,
+					grid: { stroke: COLORS.grid },
+					ticks: { stroke: COLORS.grid },
+					font: '10px IBM Plex Mono, monospace',
 				},
 				{
 					scale: 'snr',
-					stroke: '#14b8a6',
-					grid: { stroke: '#2a2d32' },
-					ticks: { stroke: '#2a2d32' },
+					stroke: COLORS.axis,
+					grid: { stroke: COLORS.grid },
+					ticks: { stroke: COLORS.grid },
 					label: 'SNR (dB)',
 					labelSize: 12,
-					font: '9px JetBrains Mono, monospace',
+					font: '10px IBM Plex Mono, monospace',
 					side: 3,
 				},
 				{
 					scale: 'stability',
-					stroke: '#f59e0b',
+					stroke: COLORS.stability,
 					grid: { show: false },
-					ticks: { stroke: '#2a2d32' },
+					ticks: { stroke: COLORS.grid },
 					label: 'Stability',
 					labelSize: 12,
-					font: '9px JetBrains Mono, monospace',
+					font: '10px IBM Plex Mono, monospace',
 					side: 1,
 				},
 			],
@@ -115,21 +125,21 @@ export default function QualityMetricsChart({
 				{
 					label: 'HR SNR',
 					scale: 'snr',
-					stroke: '#ef4444',
+					stroke: COLORS.hr,
 					width: 1.5,
 					points: { show: false },
 				},
 				{
 					label: 'RR SNR',
 					scale: 'snr',
-					stroke: '#3b82f6',
+					stroke: COLORS.rr,
 					width: 1.5,
 					points: { show: false },
 				},
 				{
 					label: 'Phase Stability',
 					scale: 'stability',
-					stroke: '#f59e0b',
+					stroke: COLORS.stability,
 					width: 1.5,
 					points: { show: false },
 					dash: [4, 2],
@@ -137,7 +147,7 @@ export default function QualityMetricsChart({
 				{
 					label: 'Signal Quality',
 					scale: 'stability',
-					stroke: '#10b981',
+					stroke: COLORS.quality,
 					width: 1.5,
 					points: { show: false },
 				},
@@ -174,33 +184,33 @@ export default function QualityMetricsChart({
 	}
 
 	const cursorReadout = cursorData ? (
-		<span className="text-micro font-mono">
-			<span className="text-text-tertiary">{formatTime(cursorData.time)}:</span>
+		<span className="text-label font-mono">
+			<span className="text-ink-muted">{formatTime(cursorData.time)}:</span>
 			<span className="ml-2 text-accent-red">{cursorData.hrSnr.toFixed(1)} dB</span>
 			<span className="ml-2 text-accent-blue">{cursorData.rrSnr.toFixed(1)} dB</span>
-			<span className="ml-2 text-accent-amber">{getStabilityLabel(cursorData.stability)}</span>
+			<span className="ml-2 text-accent-orange">{getStabilityLabel(cursorData.stability)}</span>
 		</span>
 	) : null
 
 	const legend = (
-		<div className="flex items-center gap-3 text-micro flex-wrap">
+		<div className="flex items-center gap-4 text-label flex-wrap">
 			{cursorReadout}
-			{cursorReadout && <span className="text-border">|</span>}
-			<span className="flex items-center gap-1">
-				<span className="w-3 h-0.5 bg-accent-red rounded"></span>
-				<span className="text-accent-red">HR SNR</span>
+			{cursorReadout && <span className="text-ink-muted">|</span>}
+			<span className="flex items-center gap-2">
+				<span className="w-4 h-[2px] bg-accent-red"></span>
+				<span className="text-accent-red font-mono">HR SNR</span>
 			</span>
-			<span className="flex items-center gap-1">
-				<span className="w-3 h-0.5 bg-accent-blue rounded"></span>
-				<span className="text-accent-blue">RR SNR</span>
+			<span className="flex items-center gap-2">
+				<span className="w-4 h-[2px] bg-accent-blue"></span>
+				<span className="text-accent-blue font-mono">RR SNR</span>
 			</span>
-			<span className="flex items-center gap-1">
-				<span className="w-3 h-0.5 bg-accent-amber rounded" style={{ borderStyle: 'dashed' }}></span>
-				<span className="text-accent-amber">Stability</span>
+			<span className="flex items-center gap-2">
+				<span className="w-4 h-[2px] bg-accent-orange border-dashed border-t-2 border-accent-orange"></span>
+				<span className="text-accent-orange font-mono">Stability</span>
 			</span>
-			<span className="flex items-center gap-1">
-				<span className="w-3 h-0.5 bg-accent-green rounded"></span>
-				<span className="text-accent-green">Quality</span>
+			<span className="flex items-center gap-2">
+				<span className="w-4 h-[2px] bg-accent-green"></span>
+				<span className="text-accent-green font-mono">Quality</span>
 			</span>
 		</div>
 	)

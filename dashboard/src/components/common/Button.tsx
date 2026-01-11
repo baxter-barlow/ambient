@@ -2,16 +2,21 @@ import clsx from 'clsx'
 import { ButtonHTMLAttributes, ReactNode, memo } from 'react'
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
-	variant?: 'primary' | 'secondary' | 'danger' | 'toggle'
+	variant?: 'primary' | 'secondary' | 'danger'
 	size?: 'sm' | 'md' | 'lg'
-	active?: boolean
 	children: ReactNode
 }
 
+/**
+ * Button component following TE design principles:
+ * - No shadows
+ * - No gradients
+ * - Hover = color inversion or underline
+ * - Instant state changes
+ */
 export default memo(function Button({
 	variant = 'primary',
 	size = 'md',
-	active = false,
 	className,
 	children,
 	disabled,
@@ -20,27 +25,24 @@ export default memo(function Button({
 	return (
 		<button
 			className={clsx(
-				'font-semibold rounded transition-colors duration-150',
+				'font-medium transition-all duration-fast ease-out',
 				// Variant styles
 				{
-					// Primary - teal accent
-					'bg-accent-teal hover:bg-accent-teal-hover text-text-inverse': variant === 'primary' && !disabled,
-					// Secondary - subtle
-					'bg-surface-3 hover:bg-surface-4 border border-border text-text-secondary hover:text-text-primary': variant === 'secondary',
-					// Danger - red
-					'bg-accent-red hover:bg-red-600 text-white': variant === 'danger' && !disabled,
-					// Toggle - state-based
-					'bg-accent-teal/15 border border-accent-teal text-accent-teal': variant === 'toggle' && active,
-					'bg-surface-3 border border-border text-text-secondary hover:bg-surface-4': variant === 'toggle' && !active,
+					// Primary - inverted colors
+					'bg-ink-primary text-bg-primary border border-ink-primary hover:bg-transparent hover:text-ink-primary': variant === 'primary' && !disabled,
+					// Secondary - outlined
+					'bg-transparent text-ink-primary border border-ink-primary hover:bg-ink-primary hover:text-bg-primary': variant === 'secondary' && !disabled,
+					// Danger - red accent
+					'bg-accent-red text-bg-primary border border-accent-red hover:bg-transparent hover:text-accent-red': variant === 'danger' && !disabled,
 				},
 				// Size styles
 				{
-					'px-3.5 py-1.5 text-xs': size === 'sm',
-					'px-4 py-2 text-sm': size === 'md',
-					'px-5 py-2.5 text-base': size === 'lg',
+					'px-3 py-1 text-small': size === 'sm',
+					'px-4 py-2 text-body': size === 'md',
+					'px-6 py-3 text-body': size === 'lg',
 				},
-				// Disabled state
-				disabled && 'bg-surface-3 text-text-tertiary cursor-not-allowed border-none',
+				// Disabled state - reduced contrast, no glow
+				disabled && 'bg-bg-tertiary text-ink-muted border-border cursor-not-allowed opacity-50',
 				className
 			)}
 			disabled={disabled}

@@ -550,7 +550,7 @@ async def apply_ti_config(name: str):
 		# Send each command (excluding sensorStart/sensorStop)
 		for cmd in commands:
 			if cmd.strip() and not cmd.startswith("sensorStart") and not cmd.startswith("sensorStop"):
-				response = sensor._send_command(cmd)
+				response = sensor.send_command(cmd)
 				if "Error" in response:
 					raise HTTPException(
 						status_code=400,

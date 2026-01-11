@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """Test UART data output configuration."""
 
+import sys
 import time
+from pathlib import Path
 
 import serial
+
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+
+from ambient.sensor.ports import find_ti_radar_ports, get_default_ports
 
 MAGIC_WORD = b'\x02\x01\x04\x03\x06\x05\x08\x07'
 
@@ -43,8 +50,15 @@ def test_data_output(data_port, baud=921600, duration=3):
     ser.close()
     return total, magic
 
-cli_port = "/dev/ttyUSB0"
-data_port = "/dev/ttyUSB0"  # Try same port first
+# Auto-detect ports
+ports = find_ti_radar_ports()
+if ports:
+    cli_port = ports["cli"]
+    data_port = ports["data"]
+    print(f"Detected ports: CLI={cli_port}, Data={data_port}")
+else:
+    cli_port, data_port = get_default_ports()
+    print(f"Could not auto-detect, using defaults: CLI={cli_port}, Data={data_port}")
 
 print("=== Querying Radar Firmware ===\n")
 
@@ -100,27 +114,27 @@ ser.close()
 
 print("\n=== Testing Data Output ===\n")
 
-# Test Enhanced port at 921600
-print("Testing /dev/ttyUSB0 @ 921600...")
-total, magic = test_data_output("/dev/ttyUSB0", 921600, 3)
+# Test CLI port at 921600
+print(f"Testing {cli_port} @ 921600...")
+total, magic = test_data_output(cli_port, 921600, 3)
 print(f"  {total} bytes, {magic} frames")
 
 # Also try reading from CLI port at 115200 (some firmware sends data there)
-print("Testing /dev/ttyUSB0 @ 115200...")
-total, magic = test_data_output("/dev/ttyUSB0", 115200, 3)
+print(f"Testing {cli_port} @ 115200...")
+total, magic = test_data_output(cli_port, 115200, 3)
 print(f"  {total} bytes, {magic} frames")
 
-# Try the other port too
-print("Testing /dev/ttyUSB1 @ 921600...")
+# Try the data port too
+print(f"Testing {data_port} @ 921600...")
 try:
-    total, magic = test_data_output("/dev/ttyUSB1", 921600, 3)
+    total, magic = test_data_output(data_port, 921600, 3)
     print(f"  {total} bytes, {magic} frames")
 except Exception as e:
     print(f"  Error: {e}")
 
-print("Testing /dev/ttyUSB1 @ 460800...")
+print(f"Testing {data_port} @ 460800...")
 try:
-    total, magic = test_data_output("/dev/ttyUSB1", 460800, 3)
+    total, magic = test_data_output(data_port, 460800, 3)
     print(f"  {total} bytes, {magic} frames")
 except Exception as e:
     print(f"  Error: {e}")

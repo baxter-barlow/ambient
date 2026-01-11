@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """Test if data can be routed through CLI UART."""
+import sys
 import time
+from pathlib import Path
 
 import serial
 
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+
+from ambient.sensor.ports import find_ti_radar_ports, get_default_ports
+
 MAGIC = b"\x02\x01\x04\x03\x06\x05\x08\x07"
-CLI_PORT = "/dev/ttyUSB0"
 
 
 def send_cmd(ser, cmd, wait=0.1):
@@ -18,7 +24,16 @@ def send_cmd(ser, cmd, wait=0.1):
 def main():
 	print("=== Testing Data on CLI UART ===\n")
 
-	ser = serial.Serial(CLI_PORT, 115200, timeout=1)
+	# Auto-detect ports
+	ports = find_ti_radar_ports()
+	if ports:
+		cli_port = ports["cli"]
+		print(f"Detected CLI port: {cli_port}")
+	else:
+		cli_port, _ = get_default_ports()
+		print(f"Could not auto-detect, using default: {cli_port}")
+
+	ser = serial.Serial(cli_port, 115200, timeout=1)
 	time.sleep(0.2)
 	ser.reset_input_buffer()
 	ser.reset_output_buffer()

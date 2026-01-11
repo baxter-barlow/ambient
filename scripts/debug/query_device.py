@@ -2,11 +2,16 @@
 """Query device info and test data output configurations."""
 import os
 import stat
+import sys
 import time
+from pathlib import Path
 
 import serial
 
-CLI_PORT = "/dev/ttyUSB0"
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+
+from ambient.sensor.ports import find_ti_radar_ports, get_default_ports
 
 
 def query(ser, cmd, wait=0.2):
@@ -20,7 +25,17 @@ def query(ser, cmd, wait=0.2):
 def main():
 	print("=== Device Query ===\n")
 
-	ser = serial.Serial(CLI_PORT, 115200, timeout=1)
+	# Auto-detect ports
+	ports = find_ti_radar_ports()
+	if ports:
+		cli_port = ports["cli"]
+		data_port = ports["data"]
+		print(f"Detected ports: CLI={cli_port}, Data={data_port}")
+	else:
+		cli_port, data_port = get_default_ports()
+		print(f"Could not auto-detect, using defaults: CLI={cli_port}, Data={data_port}")
+
+	ser = serial.Serial(cli_port, 115200, timeout=1)
 	time.sleep(0.1)
 
 	print("Version:")
@@ -112,7 +127,7 @@ def main():
 	ser.close()
 
 	print("\n=== Port permissions ===")
-	for port in ["/dev/ttyUSB0", "/dev/ttyUSB1"]:
+	for port in [cli_port, data_port]:
 		try:
 			st = os.stat(port)
 			print(f"{port}: {stat.filemode(st.st_mode)}")

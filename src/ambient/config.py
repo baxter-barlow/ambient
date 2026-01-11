@@ -17,10 +17,14 @@ import structlog
 
 @dataclass
 class SensorConfig:
-	"""Sensor connection configuration."""
+	"""Sensor connection configuration.
 
-	cli_port: str = "/dev/ttyUSB0"
-	data_port: str = "/dev/ttyUSB1"
+	Default ports are empty to trigger auto-detection, which works
+	cross-platform (Linux, macOS).
+	"""
+
+	cli_port: str = ""  # Empty triggers auto-detection
+	data_port: str = ""  # Empty triggers auto-detection
 	cli_baud: int = 115200
 	data_baud: int = 921600
 	timeout: float = 1.0

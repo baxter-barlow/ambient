@@ -14,10 +14,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from ambient.sensor.config import SerialConfig
+from ambient.sensor.ports import find_ti_radar_ports, get_default_ports
 from ambient.sensor.radar import RadarSensor
 
-CLI_PORT = "/dev/ttyUSB0"
-DATA_PORT = "/dev/ttyUSB1"
 CONFIG_FILE = Path(__file__).parent.parent / "configs" / "vital_signs_chirp.cfg"
 
 
@@ -25,11 +24,20 @@ def main():
     print("Chirp PHASE Output Test")
     print("=" * 50)
 
-    config = SerialConfig(cli_port=CLI_PORT, data_port=DATA_PORT)
+    # Auto-detect ports
+    ports = find_ti_radar_ports()
+    if not ports:
+        cli_port, data_port = get_default_ports()
+        print(f"Warning: Could not auto-detect ports, using defaults: {cli_port}, {data_port}")
+    else:
+        cli_port, data_port = ports["cli"], ports["data"]
+        print(f"Detected ports: CLI={cli_port}, Data={data_port}")
+
+    config = SerialConfig(cli_port=cli_port, data_port=data_port)
     sensor = RadarSensor(config=config)
 
     try:
-        print(f"Connecting to {CLI_PORT} / {DATA_PORT}...")
+        print(f"Connecting to {cli_port} / {data_port}...")
         sensor.connect()
         print("Connected")
 

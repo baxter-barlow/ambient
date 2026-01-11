@@ -311,22 +311,23 @@ class FrameProfiler:
 
 	def get_stats(self) -> dict[str, Any]:
 		"""Get current statistics as dictionary."""
-		result = {
+		timing: dict[str, Any] = {}
+		queues: dict[str, Any] = {}
+
+		for name, stats in self._stats.items():
+			timing[name] = stats.to_dict()
+
+		for name, qstats in self._queue_stats.items():
+			queues[name] = qstats.to_dict()
+
+		return {
 			"frame_count": self._frame_count,
 			"sampled_count": self._sampled_count,
 			"dropped_frames": self._dropped_frames,
 			"sample_rate": self.sample_rate,
-			"timing": {},
-			"queues": {},
+			"timing": timing,
+			"queues": queues,
 		}
-
-		for name, stats in self._stats.items():
-			result["timing"][name] = stats.to_dict()
-
-		for name, qstats in self._queue_stats.items():
-			result["queues"][name] = qstats.to_dict()
-
-		return result
 
 	def reset(self) -> None:
 		"""Reset all statistics."""

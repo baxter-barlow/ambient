@@ -6,7 +6,6 @@ import VitalsChart from '../components/charts/VitalsChart'
 import QualityMetricsChart from '../components/charts/QualityMetricsChart'
 import RangeDoppler from '../components/charts/RangeDoppler'
 import WaveformChart from '../components/charts/WaveformChart'
-import Button from '../components/common/Button'
 import clsx from 'clsx'
 
 const TIME_WINDOWS = [
@@ -16,6 +15,13 @@ const TIME_WINDOWS = [
 	{ value: 300, label: '5m' },
 ]
 
+/**
+ * Signal Viewer page following TE design principles:
+ * - Borders as primary hierarchy tool
+ * - Monospace for all data values
+ * - Square indicators, no rounded corners
+ * - One accent per chart, neutrals for everything else
+ */
 export default function SignalViewer() {
 	const sensorFrames = useAppStore(s => s.sensorFrames)
 	const vitals = useAppStore(s => s.vitals)
@@ -49,7 +55,6 @@ export default function SignalViewer() {
 		}
 	}, [vitalsHistory, timeWindow])
 
-	// Quality metrics data for trending chart
 	const qualityData = useMemo(() => {
 		const now = Date.now() / 1000
 		const cutoff = now - timeWindow
@@ -65,45 +70,44 @@ export default function SignalViewer() {
 
 	const isStreaming = deviceStatus?.state === 'streaming'
 
-	// Calculate stability percentage for progress bar (inverse - lower is better)
+	// Stability percentage (inverse - lower is better)
 	const stabilityPercent = vitals?.phase_stability !== undefined
 		? Math.max(0, Math.min(100, (1 - vitals.phase_stability / 2) * 100))
 		: 50
 
-	// Get stability color based on value
 	const getStabilityColor = (val: number | undefined) => {
-		if (val === undefined) return 'bg-text-tertiary'
+		if (val === undefined) return 'bg-ink-muted'
 		if (val < 0.5) return 'bg-accent-green'
-		if (val < 1.0) return 'bg-accent-amber'
+		if (val < 1.0) return 'bg-accent-orange'
 		return 'bg-accent-red'
 	}
 
-	// Get signal quality color
 	const getQualityColor = (val: number) => {
 		if (val >= 0.7) return 'text-accent-green'
-		if (val >= 0.4) return 'text-accent-amber'
+		if (val >= 0.4) return 'text-accent-orange'
 		return 'text-accent-red'
 	}
 
 	return (
-		<div className="space-y-5">
+		<div className="space-y-6 max-w-6xl">
 			{/* Page header */}
 			<div className="flex items-center justify-between">
-				<h2 className="text-xl text-text-primary">Real-Time Signal Viewer</h2>
-				<div className="flex items-center gap-4">
+				<h2 className="text-h2 text-ink-primary">Signal Viewer</h2>
+				<div className="flex items-center gap-6">
 					{/* Time window selector */}
-					<div className="flex items-center gap-2">
-						<span className="text-sm text-text-secondary">Window:</span>
-						<div className="flex items-center gap-1.5">
-							{TIME_WINDOWS.map(tw => (
+					<div className="flex items-center gap-3">
+						<span className="text-label text-ink-muted uppercase">Window</span>
+						<div className="flex items-center border border-border">
+							{TIME_WINDOWS.map((tw, idx) => (
 								<button
 									key={tw.value}
 									onClick={() => setTimeWindow(tw.value)}
 									className={clsx(
-										'px-2.5 py-1 text-xs rounded transition-colors duration-150',
+										'px-3 py-1 text-label font-mono transition-all duration-fast',
 										timeWindow === tw.value
-											? 'bg-accent-teal text-text-inverse font-semibold'
-											: 'bg-surface-3 text-text-secondary hover:bg-surface-4'
+											? 'bg-ink-primary text-bg-primary'
+											: 'bg-bg-secondary text-ink-secondary hover:bg-bg-tertiary',
+										idx > 0 && 'border-l border-border'
 									)}
 								>
 									{tw.label}
@@ -113,44 +117,50 @@ export default function SignalViewer() {
 					</div>
 
 					{/* Pause/Resume toggle */}
-					<Button
-						variant="toggle"
-						active={!isPaused}
-						size="sm"
+					<button
 						onClick={togglePause}
-						className="flex items-center gap-2"
+						className={clsx(
+							'flex items-center gap-2 px-4 py-2 border transition-all duration-fast',
+							isPaused
+								? 'bg-bg-secondary border-border text-ink-secondary hover:bg-bg-tertiary'
+								: 'bg-accent-green border-accent-green text-bg-primary'
+						)}
 					>
-						<span className={clsx(
-							'w-1.5 h-1.5 rounded-full',
-							isPaused ? 'bg-text-tertiary' : 'bg-accent-teal'
+						<div className={clsx(
+							'w-2 h-2',
+							isPaused ? 'bg-ink-muted' : 'bg-bg-primary'
 						)} />
-						{isPaused ? 'Paused' : 'Live'}
-					</Button>
+						<span className="text-small font-medium uppercase">
+							{isPaused ? 'Paused' : 'Live'}
+						</span>
+					</button>
 				</div>
 			</div>
 
 			{/* Warning banner when not streaming */}
 			{!isStreaming && (
-				<div className="p-3 rounded bg-accent-amber/12 border border-accent-amber/25 text-accent-amber text-sm flex items-center gap-2.5">
-					<span className="text-base">!</span>
-					Device is not streaming. Connect to the sensor to view real-time data.
+				<div className="p-4 border-l-4 border-l-accent-orange border border-border bg-bg-secondary flex items-center gap-3">
+					<div className="w-3 h-3 bg-accent-orange" />
+					<span className="text-small text-ink-primary">
+						Device is not streaming. Connect to the sensor to view real-time data.
+					</span>
 				</div>
 			)}
 
 			{/* Vitals Display Card */}
 			{vitals && (
-				<div className="bg-surface-2 border border-border rounded-card">
+				<div className="bg-bg-secondary border border-border">
 					<div className="flex items-center justify-between px-4 py-3 border-b border-border">
-						<span className="text-base text-text-primary font-medium">Vital Signs</span>
+						<span className="text-small font-medium text-ink-primary">Vital Signs</span>
 						<span className={clsx(
-							'px-2 py-0.5 rounded text-micro font-semibold uppercase tracking-wide',
+							'px-2 py-1 text-label font-mono uppercase border',
 							vitals.source === 'firmware'
-								? 'bg-accent-green/15 text-accent-green border border-accent-green/25'
+								? 'border-accent-green text-accent-green bg-bg-tertiary'
 								: vitals.source === 'chirp'
-								? 'bg-accent-teal/15 text-accent-teal border border-accent-teal/25'
-								: 'bg-accent-amber/15 text-accent-amber border border-accent-amber/25'
+								? 'border-accent-blue text-accent-blue bg-bg-tertiary'
+								: 'border-accent-orange text-accent-orange bg-bg-tertiary'
 						)}>
-							{vitals.source === 'firmware' ? 'Firmware' : vitals.source === 'chirp' ? 'Chirp' : 'Estimated'}
+							{vitals.source === 'firmware' ? 'FW' : vitals.source === 'chirp' ? 'CHIRP' : 'EST'}
 						</span>
 					</div>
 					<div className="p-4">
@@ -158,21 +168,21 @@ export default function SignalViewer() {
 						<div className="grid grid-cols-4 gap-6">
 							{/* Heart Rate */}
 							<div>
-								<span className="text-sm text-text-secondary">Heart Rate</span>
-								<p className="text-metric-lg font-mono text-accent-red mt-1">
+								<span className="text-label text-ink-muted block mb-1">HEART RATE</span>
+								<p className="font-mono text-h2 text-accent-red">
 									{vitals.heart_rate_bpm?.toFixed(0) ?? '--'}
-									<span className="text-sm text-text-tertiary ml-1">BPM</span>
+									<span className="text-small text-ink-muted ml-1">BPM</span>
 								</p>
-								<div className="mt-2 h-1 bg-surface-3 rounded overflow-hidden">
+								<div className="mt-2 h-1 bg-bg-tertiary">
 									<div
-										className="h-full bg-accent-red transition-all duration-300"
+										className="h-full bg-accent-red transition-all duration-150"
 										style={{ width: `${vitals.heart_rate_confidence * 100}%` }}
 									/>
 								</div>
-								<span className="text-xs font-mono text-text-tertiary">
+								<span className="text-label font-mono text-ink-muted">
 									{(vitals.heart_rate_confidence * 100).toFixed(0)}% conf
 									{vitals.hr_snr_db !== undefined && vitals.hr_snr_db > 0 && (
-										<span className="ml-1.5 text-accent-teal">
+										<span className="ml-2 text-accent-blue">
 											{vitals.hr_snr_db.toFixed(1)} dB
 										</span>
 									)}
@@ -181,82 +191,82 @@ export default function SignalViewer() {
 
 							{/* Respiratory Rate */}
 							<div>
-								<span className="text-sm text-text-secondary">Respiratory Rate</span>
-								<p className="text-metric-lg font-mono text-accent-blue mt-1">
+								<span className="text-label text-ink-muted block mb-1">RESPIRATORY RATE</span>
+								<p className="font-mono text-h2 text-accent-blue">
 									{vitals.respiratory_rate_bpm?.toFixed(0) ?? '--'}
-									<span className="text-sm text-text-tertiary ml-1">BPM</span>
+									<span className="text-small text-ink-muted ml-1">BPM</span>
 								</p>
-								<div className="mt-2 h-1 bg-surface-3 rounded overflow-hidden">
+								<div className="mt-2 h-1 bg-bg-tertiary">
 									<div
-										className="h-full bg-accent-blue transition-all duration-300"
+										className="h-full bg-accent-blue transition-all duration-150"
 										style={{ width: `${vitals.respiratory_rate_confidence * 100}%` }}
 									/>
 								</div>
-								<span className="text-xs font-mono text-text-tertiary">
+								<span className="text-label font-mono text-ink-muted">
 									{(vitals.respiratory_rate_confidence * 100).toFixed(0)}% conf
 									{vitals.rr_snr_db !== undefined && vitals.rr_snr_db > 0 && (
-										<span className="ml-1.5 text-accent-teal">
+										<span className="ml-2 text-accent-blue">
 											{vitals.rr_snr_db.toFixed(1)} dB
 										</span>
 									)}
 								</span>
 							</div>
 
-							{/* Signal Quality - Enhanced */}
+							{/* Signal Quality */}
 							<div>
-								<span className="text-sm text-text-secondary">Signal Quality</span>
+								<span className="text-label text-ink-muted block mb-1">SIGNAL QUALITY</span>
 								<p className={clsx(
-									'text-metric-lg font-mono mt-1',
+									'font-mono text-h2',
 									getQualityColor(vitals.signal_quality)
 								)}>
 									{(vitals.signal_quality * 100).toFixed(0)}%
 								</p>
-								<div className="mt-2 h-1 bg-surface-3 rounded overflow-hidden">
+								<div className="mt-2 h-1 bg-bg-tertiary">
 									<div
 										className={clsx(
-											'h-full transition-all duration-300',
+											'h-full transition-all duration-150',
 											vitals.signal_quality >= 0.7 ? 'bg-accent-green' :
-											vitals.signal_quality >= 0.4 ? 'bg-accent-amber' : 'bg-accent-red'
+											vitals.signal_quality >= 0.4 ? 'bg-accent-orange' : 'bg-accent-red'
 										)}
 										style={{ width: `${vitals.signal_quality * 100}%` }}
 									/>
 								</div>
 								{vitals.signal_quality < 0.4 && (
-									<span className="text-xs text-accent-red">
+									<span className="text-label text-accent-red">
 										Low signal - check positioning
 									</span>
 								)}
 							</div>
 
-							{/* Phase Stability - Enhanced with progress bar */}
+							{/* Phase Stability */}
 							<div>
-								<span className="text-sm text-text-secondary">Phase Stability</span>
+								<span className="text-label text-ink-muted block mb-1">PHASE STABILITY</span>
 								<p className={clsx(
-									'text-metric-lg font-mono mt-1',
+									'font-mono text-h2',
 									vitals.phase_stability !== undefined && vitals.phase_stability < 0.5
 										? 'text-accent-green'
 										: vitals.phase_stability !== undefined && vitals.phase_stability < 1.0
-										? 'text-accent-amber'
+										? 'text-accent-orange'
 										: 'text-accent-red'
 								)}>
 									{vitals.phase_stability !== undefined
-										? vitals.phase_stability < 0.5 ? 'Good'
-										: vitals.phase_stability < 1.0 ? 'Fair' : 'Poor'
+										? vitals.phase_stability < 0.5 ? 'GOOD'
+										: vitals.phase_stability < 1.0 ? 'FAIR' : 'POOR'
 										: '--'}
 								</p>
-								<div className="mt-2 h-1 bg-surface-3 rounded overflow-hidden">
+								<div className="mt-2 h-1 bg-bg-tertiary">
 									<div
 										className={clsx(
-											'h-full transition-all duration-300',
+											'h-full transition-all duration-150',
 											getStabilityColor(vitals.phase_stability)
 										)}
 										style={{ width: `${stabilityPercent}%` }}
 									/>
 								</div>
-								<span className="text-xs font-mono text-text-tertiary">
+								<span className="text-label font-mono text-ink-muted">
 									{vitals.phase_stability?.toFixed(3) ?? '--'}
 									{vitals.motion_detected && (
-										<span className="ml-1.5 text-accent-amber">Motion!</span>
+										<span className="ml-2 text-accent-orange">MOTION</span>
 									)}
 								</span>
 							</div>
@@ -308,28 +318,24 @@ export default function SignalViewer() {
 				/>
 			)}
 
-			{/* Firmware Waveforms (only shown when using vital signs firmware) */}
+			{/* Firmware Waveforms */}
 			{vitals?.source === 'firmware' && (
-				<div className="mt-4">
-					<WaveformChart
-						breathingWaveform={vitals.breathing_waveform}
-						heartWaveform={vitals.heart_waveform}
-						width={1180}
-						height={250}
-					/>
-				</div>
+				<WaveformChart
+					breathingWaveform={vitals.breathing_waveform}
+					heartWaveform={vitals.heart_waveform}
+					width={1180}
+					height={250}
+				/>
 			)}
 
-			{/* Chirp Waveforms (shown when using chirp firmware with waveform data) */}
+			{/* Chirp Waveforms */}
 			{vitals?.source === 'chirp' && (vitals.breathing_waveform || vitals.heart_waveform) && (
-				<div className="mt-4">
-					<WaveformChart
-						breathingWaveform={vitals.breathing_waveform}
-						heartWaveform={vitals.heart_waveform}
-						width={1180}
-						height={250}
-					/>
-				</div>
+				<WaveformChart
+					breathingWaveform={vitals.breathing_waveform}
+					heartWaveform={vitals.heart_waveform}
+					width={1180}
+					height={250}
+				/>
 			)}
 		</div>
 	)

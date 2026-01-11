@@ -17,7 +17,8 @@ export function useKeyboardShortcuts() {
 
 	const shortcuts: ShortcutHandler[] = [
 		// Global navigation
-		{ key: '1', description: 'Go to Device Status', handler: () => navigate('/') },
+		{ key: '0', description: 'Go to Dashboard', handler: () => navigate('/') },
+		{ key: '1', description: 'Go to Device Status', handler: () => navigate('/device') },
 		{ key: '2', description: 'Go to Signal Viewer', handler: () => navigate('/signals') },
 		{ key: '3', description: 'Go to Configuration', handler: () => navigate('/config') },
 		{ key: '4', description: 'Go to Recordings', handler: () => navigate('/recordings') },
@@ -30,8 +31,12 @@ export function useKeyboardShortcuts() {
 
 		// Help
 		{ key: '?', shift: true, description: 'Show keyboard shortcuts', handler: () => {
-			// Dispatch custom event for help modal
 			window.dispatchEvent(new CustomEvent('show-shortcuts-help'))
+		}},
+
+		// Theme
+		{ key: 't', description: 'Open theme switcher', handler: () => {
+			window.dispatchEvent(new CustomEvent('show-theme-switcher'))
 		}},
 	]
 
@@ -66,8 +71,12 @@ export function useKeyboardShortcuts() {
 
 export function getShortcutsList(): { key: string; description: string }[] {
 	return [
+		{ key: '0', description: 'Go to Dashboard' },
 		{ key: '1-7', description: 'Navigate to pages' },
 		{ key: 'Space', description: 'Pause/Resume streaming' },
+		{ key: 'L / R / C', description: 'Toggle Logs/Record/Config panels' },
+		{ key: 'Escape', description: 'Collapse panels' },
+		{ key: 'T', description: 'Open theme switcher' },
 		{ key: 'Shift + ?', description: 'Show this help' },
 	]
 }

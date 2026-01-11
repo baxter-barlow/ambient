@@ -29,8 +29,8 @@ class DeviceStatus(BaseModel):
 
 
 class ConnectRequest(BaseModel):
-	cli_port: str = "/dev/ttyUSB0"
-	data_port: str = "/dev/ttyUSB1"
+	cli_port: str = ""  # Empty triggers auto-detection
+	data_port: str = ""  # Empty triggers auto-detection
 	config: str | None = None  # config profile name or path
 
 

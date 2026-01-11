@@ -1,42 +1,75 @@
-/* Import fonts first (must precede all other statements) */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* Fonts - IBM Plex Sans + Mono for TE aesthetic */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens - Teenage Engineering inspired */
+:root {
+	/* Base Neutrals (warm, never pure) */
+	--bg-primary: #F4F4F2;
+	--bg-secondary: #ECECEA;
+	--bg-tertiary: #E2E2DF;
+	--bg-elevated: #FAFAFA;
+
+	/* Ink (text) colors */
+	--ink-primary: #111111;
+	--ink-secondary: #4A4A4A;
+	--ink-muted: #8A8A8A;
+
+	/* Functional accents - signals, not decoration */
+	--accent-yellow: #FFD400;
+	--accent-red: #E53935;
+	--accent-blue: #1976D2;
+	--accent-green: #2E7D32;
+	--accent-orange: #F57C00;
+	--accent-purple: #6A1B9A;
+
+	/* Borders */
+	--border-default: #D4D4D1;
+	--border-strong: #111111;
+
+	/* Typography */
+	--font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+	--font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+	/* Spacing scale (strict) */
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-6: 24px;
+	--space-8: 32px;
+	--space-12: 48px;
+	--space-16: 64px;
+}
+
+/* Base styles */
 body {
-	font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-	background-color: #131518;
-	color: #e5e7eb;
+	font-family: var(--font-sans);
+	font-size: 15px;
+	line-height: 1.5;
+	background-color: var(--bg-primary);
+	color: var(--ink-primary);
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 }
 
-/* uPlot chart styling */
-.uplot {
-	font-family: inherit;
-}
+/* Typography utilities */
+.text-display { font-size: 40px; font-weight: 700; line-height: 1.1; }
+.text-h1 { font-size: 32px; font-weight: 700; line-height: 1.2; }
+.text-h2 { font-size: 24px; font-weight: 600; line-height: 1.25; }
+.text-h3 { font-size: 18px; font-weight: 600; line-height: 1.3; }
+.text-body { font-size: 15px; font-weight: 400; line-height: 1.5; }
+.text-small { font-size: 13px; font-weight: 400; line-height: 1.4; }
+.text-label { font-size: 11px; font-weight: 500; line-height: 1.3; text-transform: uppercase; letter-spacing: 0.05em; }
+.text-mono { font-family: var(--font-mono); font-size: 13px; font-weight: 500; line-height: 1.4; }
 
-.uplot .u-title {
-	font-size: 13px !important;
-	font-weight: 500 !important;
-	color: #e5e7eb !important;
-}
-
-.uplot .u-legend {
-	font-size: 10px !important;
-	color: #9ca3af !important;
-}
-
-.uplot .u-legend .u-series {
-	padding: 2px 8px !important;
-}
-
-/* Focus visible styles */
+/* Focus states - yellow accent */
 :focus-visible {
-	outline: 2px solid #00a896;
+	outline: 2px solid var(--accent-yellow);
 	outline-offset: 2px;
 }
 
@@ -44,28 +77,53 @@ body {
 	outline: none;
 }
 
-/* Scrollbar styling */
+/* Scrollbar - minimal */
 ::-webkit-scrollbar {
 	width: 8px;
 	height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-	background: #18191d;
+	background: var(--bg-secondary);
 }
 
 ::-webkit-scrollbar-thumb {
-	background: #2a2d32;
-	border-radius: 4px;
+	background: var(--border-default);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-	background: #3a3d42;
+	background: var(--ink-muted);
 }
 
-/* Selection styling */
+/* Selection */
 ::selection {
-	background: rgba(0, 168, 150, 0.3);
+	background: var(--accent-yellow);
+	color: var(--ink-primary);
+}
+
+/* Transitions - quick, ease-out only */
+.transition-fast {
+	transition: all 150ms ease-out;
+}
+
+/* uPlot chart styling */
+.uplot {
+	font-family: var(--font-sans);
+}
+
+.uplot .u-title {
+	font-size: 13px !important;
+	font-weight: 600 !important;
+	color: var(--ink-primary) !important;
+}
+
+.uplot .u-legend {
+	font-size: 11px !important;
+	color: var(--ink-secondary) !important;
+}
+
+.uplot .u-legend .u-series {
+	padding: 2px 8px !important;
 }
 
 /* Toast animation */
@@ -81,5 +139,5 @@ body {
 }
 
 .animate-slide-in-right {
-	animation: slide-in-right 0.2s ease-out;
+	animation: slide-in-right 150ms ease-out;
 }

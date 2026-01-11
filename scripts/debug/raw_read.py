@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """Raw continuous read from both ports simultaneously."""
 
+import sys
 import time
+from pathlib import Path
 
 import serial
+
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+
+from ambient.sensor.ports import find_ti_radar_ports, get_default_ports
 
 MAGIC = b'\x02\x01\x04\x03\x06\x05\x08\x07'
 
@@ -41,9 +48,19 @@ def read_port(port, baud, name, duration=10):
     except Exception as e:
         print(f"\n{name} ({port} @ {baud}): ERROR - {e}")
 
+# Auto-detect ports
+ports = find_ti_radar_ports()
+if ports:
+    cli_port = ports["cli"]
+    data_port = ports["data"]
+    print(f"Detected ports: CLI={cli_port}, Data={data_port}")
+else:
+    cli_port, data_port = get_default_ports()
+    print(f"Could not auto-detect, using defaults: CLI={cli_port}, Data={data_port}")
+
 # First configure the device
 print("=== Configuring radar ===")
-cli = serial.Serial("/dev/ttyUSB0", 115200, timeout=1)
+cli = serial.Serial(cli_port, 115200, timeout=1)
 time.sleep(0.2)
 cli.reset_input_buffer()
 cli.reset_output_buffer()
@@ -99,23 +116,23 @@ time.sleep(0.5)  # Let sensor start
 
 print("\n=== Reading from all ports for 10 seconds ===")
 
-# Test USB0 (Enhanced - supports high baud) and USB1 (Standard)
+# Test both ports at various baud rates
 # Need to re-start sensor between tests since opening CLI port stops it
-def test_with_restart(data_port, data_baud, name):
+def test_with_restart(test_port, test_baud, name):
     # Restart sensor
-    cli = serial.Serial("/dev/ttyUSB0", 115200, timeout=0.5)
+    cli = serial.Serial(cli_port, 115200, timeout=0.5)
     cli.write(b"sensorStart\n")
     time.sleep(0.3)
     cli.close()
 
     time.sleep(0.2)
-    read_port(data_port, data_baud, name, duration=5)
+    read_port(test_port, test_baud, name, duration=5)
 
-# Primary test: USB0 (Enhanced) at high baud for data
-read_port("/dev/ttyUSB0", 921600, "USB0 @ 921600 (Enhanced, high-speed)", duration=5)
+# Primary test: CLI port at high baud for data
+read_port(cli_port, 921600, f"{cli_port} @ 921600 (high-speed)", duration=5)
 
-# Restart and test USB1
-test_with_restart("/dev/ttyUSB1", 460800, "USB1 @ 460800 (Standard, max baud)")
-test_with_restart("/dev/ttyUSB1", 115200, "USB1 @ 115200 (Standard, low baud)")
+# Restart and test data port
+test_with_restart(data_port, 460800, f"{data_port} @ 460800 (medium baud)")
+test_with_restart(data_port, 115200, f"{data_port} @ 115200 (low baud)")
 
 print("\n=== Done ===")

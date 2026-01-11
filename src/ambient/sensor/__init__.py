@@ -19,10 +19,14 @@ from .frame import (
 	FrameHeader,
 	RadarFrame,
 )
+from .mock import MockRadarSensor, get_sensor, is_mock_enabled
 from .radar import RadarSensor
 
 __all__ = [
 	"RadarSensor",
+	"MockRadarSensor",
+	"get_sensor",
+	"is_mock_enabled",
 	"RadarFrame",
 	"DetectedPoint",
 	"FrameBuffer",

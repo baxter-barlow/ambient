@@ -89,8 +89,9 @@ class TestFrameBuffer:
 class TestRadarSensorInit:
 	def test_default_config(self):
 		sensor = RadarSensor()
-		assert sensor._config.cli_port == "/dev/ttyUSB0"
-		assert sensor._config.data_port == "/dev/ttyUSB1"
+		# Empty ports trigger auto-detection
+		assert sensor._config.cli_port == ""
+		assert sensor._config.data_port == ""
 		assert not sensor._auto_reconnect
 
 	def test_custom_config(self):

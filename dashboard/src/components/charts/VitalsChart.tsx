@@ -10,12 +10,22 @@ interface Props {
 	width?: number
 	height?: number
 	isLoading?: boolean
+	compact?: boolean
 }
 
 interface CursorData {
 	time: number
 	hr: number | null
 	rr: number | null
+}
+
+// TE color palette for light theme
+const COLORS = {
+	hr: '#E53935',          // accent-red for heart rate
+	rr: '#1976D2',          // accent-blue for respiratory rate
+	grid: '#E2E2DF',        // bg-tertiary
+	axis: '#4A4A4A',        // ink-secondary
+	background: '#ECECEA',  // bg-secondary
 }
 
 export default function VitalsChart({
@@ -25,6 +35,7 @@ export default function VitalsChart({
 	width = 600,
 	height = 250,
 	isLoading = false,
+	compact = false,
 }: Props) {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const chartRef = useRef<uPlot | null>(null)
@@ -61,8 +72,8 @@ export default function VitalsChart({
 				y: true,
 				points: {
 					show: true,
-					size: 8,
-					width: 2,
+					size: 6,
+					width: 1.5,
 				},
 			},
 			hooks: {
@@ -70,29 +81,29 @@ export default function VitalsChart({
 			},
 			axes: [
 				{
-					stroke: '#6b7280',
-					grid: { stroke: '#2a2d32' },
-					ticks: { stroke: '#2a2d32' },
-					font: '9px JetBrains Mono, monospace',
+					stroke: COLORS.axis,
+					grid: { stroke: COLORS.grid },
+					ticks: { stroke: COLORS.grid },
+					font: '10px IBM Plex Mono, monospace',
 				},
 				{
 					scale: 'hr',
-					stroke: '#ef4444',
-					grid: { stroke: '#2a2d32' },
-					ticks: { stroke: '#2a2d32' },
+					stroke: COLORS.hr,
+					grid: { stroke: COLORS.grid },
+					ticks: { stroke: COLORS.grid },
 					label: 'HR (BPM)',
 					labelSize: 12,
-					font: '9px JetBrains Mono, monospace',
+					font: '10px IBM Plex Mono, monospace',
 					side: 3,
 				},
 				{
 					scale: 'rr',
-					stroke: '#3b82f6',
+					stroke: COLORS.rr,
 					grid: { show: false },
-					ticks: { stroke: '#2a2d32' },
+					ticks: { stroke: COLORS.grid },
 					label: 'RR (BPM)',
 					labelSize: 12,
-					font: '9px JetBrains Mono, monospace',
+					font: '10px IBM Plex Mono, monospace',
 					side: 1,
 				},
 			],
@@ -101,14 +112,14 @@ export default function VitalsChart({
 				{
 					label: 'Heart Rate',
 					scale: 'hr',
-					stroke: '#ef4444',
+					stroke: COLORS.hr,
 					width: 1.5,
 					points: { show: false },
 				},
 				{
 					label: 'Respiratory Rate',
 					scale: 'rr',
-					stroke: '#3b82f6',
+					stroke: COLORS.rr,
 					width: 1.5,
 					points: { show: false },
 				},
@@ -144,8 +155,8 @@ export default function VitalsChart({
 	}
 
 	const cursorReadout = cursorData ? (
-		<span className="text-micro font-mono">
-			<span className="text-text-tertiary">{formatTime(cursorData.time)}:</span>
+		<span className="text-label font-mono">
+			<span className="text-ink-muted">{formatTime(cursorData.time)}:</span>
 			{cursorData.hr != null && (
 				<span className="ml-2 text-accent-red">{cursorData.hr.toFixed(0)} BPM</span>
 			)}
@@ -156,16 +167,16 @@ export default function VitalsChart({
 	) : null
 
 	const legend = (
-		<div className="flex items-center gap-4 text-micro">
+		<div className="flex items-center gap-4 text-label">
 			{cursorReadout}
-			{cursorReadout && <span className="text-border">|</span>}
-			<span className="flex items-center gap-1.5">
-				<span className="w-4 h-0.5 bg-accent-red rounded"></span>
-				<span className="text-accent-red">HR</span>
+			{cursorReadout && <span className="text-ink-muted">|</span>}
+			<span className="flex items-center gap-2">
+				<span className="w-4 h-[2px] bg-accent-red"></span>
+				<span className="text-accent-red font-mono">HR</span>
 			</span>
-			<span className="flex items-center gap-1.5">
-				<span className="w-4 h-0.5 bg-accent-blue rounded"></span>
-				<span className="text-accent-blue">RR</span>
+			<span className="flex items-center gap-2">
+				<span className="w-4 h-[2px] bg-accent-blue"></span>
+				<span className="text-accent-blue font-mono">RR</span>
 			</span>
 		</div>
 	)
@@ -173,13 +184,14 @@ export default function VitalsChart({
 	return (
 		<ChartContainer
 			title="Vital Signs History"
-			actions={legend}
+			actions={compact ? undefined : legend}
 			isLoading={isLoading}
 			isEmpty={isEmpty}
 			emptyMessage="Waiting for vital signs data..."
 			loadingMessage="Loading vital signs history..."
 			width={width}
 			height={height}
+			compact={compact}
 		>
 			<div ref={containerRef} />
 		</ChartContainer>

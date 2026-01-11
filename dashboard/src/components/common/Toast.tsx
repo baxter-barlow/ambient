@@ -27,6 +27,12 @@ export function showToast(message: string, variant: ToastMessage['variant'] = 'i
 	}, 4000)
 }
 
+/**
+ * Toast container following TE design principles:
+ * - No rounded corners, no shadows
+ * - Clear accent colors as signals
+ * - Minimal, functional design
+ */
 export function ToastContainer() {
 	const [currentToasts, setCurrentToasts] = useState<ToastMessage[]>([])
 
@@ -39,53 +45,35 @@ export function ToastContainer() {
 
 	if (currentToasts.length === 0) return null
 
-	const variantClasses = {
-		success: 'bg-accent-green/95 text-white',
-		error: 'bg-accent-red/95 text-white',
-		warning: 'bg-accent-amber/95 text-surface-0',
-		info: 'bg-surface-4/95 text-text-primary',
+	const variantStyles = {
+		success: 'border-accent-green bg-bg-secondary',
+		error: 'border-accent-red bg-bg-secondary',
+		warning: 'border-accent-orange bg-bg-secondary',
+		info: 'border-ink-primary bg-bg-secondary',
 	}
 
-	const icons = {
-		success: (
-			<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2">
-				<path d="M4 9l3.5 3.5L14 5" strokeLinecap="round" strokeLinejoin="round" />
-			</svg>
-		),
-		error: (
-			<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2">
-				<circle cx="9" cy="9" r="7" />
-				<path d="M6 6l6 6M12 6l-6 6" strokeLinecap="round" />
-			</svg>
-		),
-		warning: (
-			<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2">
-				<path d="M9 6v4m0 2h.01" strokeLinecap="round" />
-				<path d="M9 16.5L1.5 3.5h15L9 16.5z" />
-			</svg>
-		),
-		info: (
-			<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2">
-				<circle cx="9" cy="9" r="7" />
-				<path d="M9 8v5m0-8h.01" strokeLinecap="round" />
-			</svg>
-		),
+	const accentColors = {
+		success: 'bg-accent-green',
+		error: 'bg-accent-red',
+		warning: 'bg-accent-orange',
+		info: 'bg-ink-primary',
 	}
 
 	return (
-		<div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+		<div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
 			{currentToasts.map(toast => (
 				<div
 					key={toast.id}
 					className={clsx(
-						'flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg',
+						'flex items-center gap-3 px-4 py-3 border',
 						'animate-slide-in-right',
-						variantClasses[toast.variant]
+						variantStyles[toast.variant]
 					)}
 					role="alert"
 				>
-					{icons[toast.variant]}
-					<span className="text-sm font-medium">{toast.message}</span>
+					{/* Color indicator bar */}
+					<div className={clsx('w-1 h-4', accentColors[toast.variant])} />
+					<span className="text-small text-ink-primary">{toast.message}</span>
 				</div>
 			))}
 		</div>

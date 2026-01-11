@@ -6,6 +6,12 @@ import clsx from 'clsx'
 
 const LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR'] as const
 
+/**
+ * Logs page following TE design principles:
+ * - Monospace for all log data
+ * - Borders as hierarchy
+ * - Functional accent colors for log levels
+ */
 export default function Logs() {
 	useLogsWebSocket()
 
@@ -32,25 +38,21 @@ export default function Logs() {
 
 	const getLevelColor = (level: string) => {
 		switch (level) {
-			case 'DEBUG': return 'text-text-tertiary'
+			case 'DEBUG': return 'text-ink-muted'
 			case 'INFO': return 'text-accent-blue'
-			case 'WARNING': return 'text-accent-amber'
+			case 'WARNING': return 'text-accent-orange'
 			case 'ERROR': return 'text-accent-red'
-			default: return 'text-text-tertiary'
+			default: return 'text-ink-muted'
 		}
 	}
 
 	const formatTime = (timestamp: number) => {
 		const date = new Date(timestamp * 1000)
-		return date.toLocaleTimeString('en-US', { hour12: false }) +
-			'.' + date.getMilliseconds().toString().padStart(3, '0')
+		return date.toLocaleTimeString('en-US', { hour12: false }) + '.' + date.getMilliseconds().toString().padStart(3, '0')
 	}
 
 	const exportLogs = () => {
-		const content = filteredLogs.map(log =>
-			`${formatTime(log.timestamp)} [${log.level}] ${log.logger}: ${log.message}`
-		).join('\n')
-
+		const content = filteredLogs.map(log => `${formatTime(log.timestamp)} [${log.level}] ${log.logger}: ${log.message}`).join('\n')
 		const blob = new Blob([content], { type: 'text/plain' })
 		const url = URL.createObjectURL(blob)
 		const a = document.createElement('a')
@@ -63,27 +65,30 @@ export default function Logs() {
 	return (
 		<div className="space-y-4 h-full flex flex-col">
 			<div className="flex items-center justify-between">
-				<h2 className="text-xl text-text-primary">Logs & Debugging</h2>
-				<div className="flex items-center gap-4">
+				<h2 className="text-h2 text-ink-primary">Logs & Debugging</h2>
+				<div className="flex items-center gap-6">
 					{/* Level filter */}
-					<div className="flex items-center gap-2">
-						<span className="text-sm text-text-secondary">Level:</span>
-						{LEVELS.map(level => (
-							<button
-								key={level}
-								onClick={() => setFilter(level)}
-								aria-label={`Filter by ${level} level`}
-								aria-pressed={filter === level}
-								className={clsx(
-									'px-2.5 py-1 text-xs rounded transition-colors duration-150',
-									filter === level
-										? 'bg-accent-teal text-text-inverse font-semibold'
-										: 'bg-surface-3 text-text-secondary hover:bg-surface-4'
-								)}
-							>
-								{level}
-							</button>
-						))}
+					<div className="flex items-center gap-3">
+						<span className="text-label text-ink-muted uppercase">Level</span>
+						<div className="flex items-center border border-border">
+							{LEVELS.map((level, idx) => (
+								<button
+									key={level}
+									onClick={() => setFilter(level)}
+									aria-label={`Filter by ${level} level`}
+									aria-pressed={filter === level}
+									className={clsx(
+										'px-3 py-1 text-label font-mono transition-all duration-fast',
+										filter === level
+											? 'bg-ink-primary text-bg-primary'
+											: 'bg-bg-secondary text-ink-secondary hover:bg-bg-tertiary',
+										idx > 0 && 'border-l border-border'
+									)}
+								>
+									{level}
+								</button>
+							))}
+						</div>
 					</div>
 
 					{/* Search */}
@@ -93,16 +98,16 @@ export default function Logs() {
 						onChange={e => setSearch(e.target.value)}
 						placeholder="Search..."
 						aria-label="Search logs"
-						className="bg-surface-3 border border-border rounded px-3 py-1.5 text-sm w-48 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-teal"
+						className="bg-bg-tertiary border border-border px-3 py-1 text-small w-48 text-ink-primary font-mono focus:outline-none focus:border-accent-yellow"
 					/>
 
 					{/* Auto-scroll toggle */}
-					<label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+					<label className="flex items-center gap-2 text-label text-ink-muted cursor-pointer uppercase">
 						<input
 							type="checkbox"
 							checked={autoScroll}
 							onChange={e => setAutoScroll(e.target.checked)}
-							className="accent-accent-teal"
+							className="accent-accent-yellow w-4 h-4"
 						/>
 						Auto-scroll
 					</label>
@@ -118,27 +123,19 @@ export default function Logs() {
 				role="log"
 				aria-label="Application logs"
 				aria-live="polite"
-				className="flex-1 bg-surface-2 border border-border rounded-card p-4 overflow-auto font-mono text-sm"
+				className="flex-1 bg-bg-secondary border border-border p-4 overflow-auto font-mono text-small"
 			>
 				{filteredLogs.length === 0 ? (
-					<p className="text-text-tertiary">No logs matching filter.</p>
+					<p className="text-ink-muted">No logs matching filter.</p>
 				) : (
 					<table className="w-full">
 						<tbody>
 							{filteredLogs.map((log, i) => (
-								<tr key={i} className="hover:bg-surface-3/50">
-									<td className="py-0.5 pr-4 text-text-tertiary whitespace-nowrap">
-										{formatTime(log.timestamp)}
-									</td>
-									<td className={clsx('py-0.5 pr-4 whitespace-nowrap', getLevelColor(log.level))}>
-										{log.level}
-									</td>
-									<td className="py-0.5 pr-4 text-text-tertiary whitespace-nowrap">
-										{log.logger}
-									</td>
-									<td className="py-0.5 text-text-primary">
-										{log.message}
-									</td>
+								<tr key={i} className="hover:bg-bg-tertiary">
+									<td className="py-0.5 pr-4 text-ink-muted whitespace-nowrap">{formatTime(log.timestamp)}</td>
+									<td className={clsx('py-0.5 pr-4 whitespace-nowrap', getLevelColor(log.level))}>{log.level}</td>
+									<td className="py-0.5 pr-4 text-ink-muted whitespace-nowrap">{log.logger}</td>
+									<td className="py-0.5 text-ink-primary">{log.message}</td>
 								</tr>
 							))}
 						</tbody>

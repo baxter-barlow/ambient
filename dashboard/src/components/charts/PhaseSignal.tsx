@@ -9,6 +9,7 @@ interface Props {
 	width?: number
 	height?: number
 	isLoading?: boolean
+	compact?: boolean
 }
 
 interface CursorData {
@@ -16,7 +17,16 @@ interface CursorData {
 	value: number
 }
 
-export default function PhaseSignal({ timestamps, phases, width = 600, height = 200, isLoading = false }: Props) {
+// TE color palette for light theme
+const COLORS = {
+	accent: '#2E7D32',      // accent-green for phase signal
+	grid: '#E2E2DF',        // bg-tertiary
+	axis: '#4A4A4A',        // ink-secondary
+	background: '#ECECEA',  // bg-secondary
+	cursor: '#111111',      // ink-primary
+}
+
+export default function PhaseSignal({ timestamps, phases, width = 600, height = 200, isLoading = false, compact = false }: Props) {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const chartRef = useRef<uPlot | null>(null)
 	const [cursorData, setCursorData] = useState<CursorData | null>(null)
@@ -50,10 +60,10 @@ export default function PhaseSignal({ timestamps, phases, width = 600, height = 
 				y: true,
 				points: {
 					show: true,
-					size: 8,
-					stroke: '#00a896',
-					fill: '#1e2024',
-					width: 2,
+					size: 6,
+					stroke: COLORS.cursor,
+					fill: COLORS.background,
+					width: 1.5,
 				},
 			},
 			hooks: {
@@ -61,24 +71,24 @@ export default function PhaseSignal({ timestamps, phases, width = 600, height = 
 			},
 			axes: [
 				{
-					stroke: '#6b7280',
-					grid: { stroke: '#2a2d32', width: 1 },
-					ticks: { stroke: '#2a2d32' },
-					font: '9px JetBrains Mono, monospace',
+					stroke: COLORS.axis,
+					grid: { stroke: COLORS.grid, width: 1 },
+					ticks: { stroke: COLORS.grid },
+					font: '10px IBM Plex Mono, monospace',
 				},
 				{
-					stroke: '#6b7280',
-					grid: { stroke: '#2a2d32', width: 1 },
-					ticks: { stroke: '#2a2d32' },
+					stroke: COLORS.axis,
+					grid: { stroke: COLORS.grid, width: 1 },
+					ticks: { stroke: COLORS.grid },
 					label: 'Displacement (a.u.)',
 					labelSize: 12,
-					font: '9px JetBrains Mono, monospace',
+					font: '10px IBM Plex Mono, monospace',
 				},
 			],
 			series: [
 				{},
 				{
-					stroke: '#00a896',
+					stroke: COLORS.accent,
 					width: 1.5,
 				},
 			],
@@ -105,7 +115,7 @@ export default function PhaseSignal({ timestamps, phases, width = 600, height = 
 	}
 
 	const cursorReadout = cursorData ? (
-		<span className="text-micro font-mono text-accent-teal">
+		<span className="text-label font-mono text-accent-green">
 			{formatTime(cursorData.time)}: {cursorData.value.toFixed(3)}
 		</span>
 	) : null
@@ -116,8 +126,8 @@ export default function PhaseSignal({ timestamps, phases, width = 600, height = 
 			subtitle={
 				<>
 					{cursorReadout}
-					{cursorReadout && timestamps.length > 0 && <span className="mx-2 text-border">|</span>}
-					{timestamps.length > 0 && <span>{timestamps.length} samples</span>}
+					{cursorReadout && timestamps.length > 0 && <span className="mx-2 text-ink-muted">|</span>}
+					{timestamps.length > 0 && <span className="text-label font-mono text-ink-secondary">{timestamps.length} samples</span>}
 				</>
 			}
 			isLoading={isLoading}
@@ -126,6 +136,7 @@ export default function PhaseSignal({ timestamps, phases, width = 600, height = 
 			loadingMessage="Loading displacement signal..."
 			width={width}
 			height={height}
+			compact={compact}
 		>
 			<div ref={containerRef} />
 		</ChartContainer>

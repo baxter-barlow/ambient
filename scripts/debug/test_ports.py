@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """Test both ports at various baud rates to find data stream."""
 
+import sys
 import time
+from pathlib import Path
 
 import serial
+
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+
+from ambient.sensor.ports import find_ti_radar_ports, get_default_ports
 
 MAGIC_WORD = b'\x02\x01\x04\x03\x06\x05\x08\x07'
 
@@ -65,18 +72,28 @@ def test_read(port, baud, duration=3):
 
 print("=== Testing Port Configurations ===\n")
 
+# Auto-detect ports
+ports = find_ti_radar_ports()
+if ports:
+    cli_port = ports["cli"]
+    data_port = ports["data"]
+    print(f"Detected ports: CLI={cli_port}, Data={data_port}")
+else:
+    cli_port, data_port = get_default_ports()
+    print(f"Could not auto-detect, using defaults: CLI={cli_port}, Data={data_port}")
+
 # First send config via Enhanced port (known to work for CLI)
-cli_port = "/dev/ttyUSB0"
 send_config(cli_port)
 time.sleep(0.5)
 
 # Test both ports at various baud rates
 test_configs = [
-    ("/dev/ttyUSB0", 921600),   # Enhanced at high baud
-    ("/dev/ttyUSB0", 460800),   # Enhanced at medium baud
-    ("/dev/ttyUSB0", 115200),   # Enhanced at CLI baud (data might come here too)
-    ("/dev/ttyUSB1", 460800),   # Standard at max supported baud
-    ("/dev/ttyUSB1", 115200),   # Standard at low baud
+    (cli_port, 921600),    # CLI port at high baud
+    (cli_port, 460800),    # CLI port at medium baud
+    (cli_port, 115200),    # CLI port at CLI baud (data might come here too)
+    (data_port, 921600),   # Data port at high baud
+    (data_port, 460800),   # Data port at medium baud
+    (data_port, 115200),   # Data port at low baud
 ]
 
 print("Reading from ports for 3 seconds each...\n")

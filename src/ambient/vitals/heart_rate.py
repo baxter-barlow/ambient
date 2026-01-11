@@ -243,7 +243,7 @@ class HeartRateEstimator:
 		peak_idx = np.argmax(search) + min_lag
 		if peak_idx > 0:
 			freq = self.sample_rate_hz / peak_idx
-			return freq * 60.0, float(autocorr[peak_idx])
+			return float(freq * 60.0), float(autocorr[peak_idx])
 		return None, 0.0
 
 	def get_smoothed_hr(self, window: int = 5) -> float | None:
