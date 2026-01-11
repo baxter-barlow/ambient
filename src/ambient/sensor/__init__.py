@@ -1,5 +1,11 @@
 """Sensor interface for IWR6843AOPEVM radar."""
 from .config import ChirpConfig, SerialConfig, create_vital_signs_config
+from .config_parser import (
+	ConfigParser,
+	ParsedConfig,
+	parse_config_content,
+	parse_config_file,
+)
 from .frame import (
 	ChirpComplexRangeFFT,
 	ChirpMotionStatus,
@@ -24,6 +30,11 @@ __all__ = [
 	"ChirpConfig",
 	"SerialConfig",
 	"create_vital_signs_config",
+	# Config parser
+	"ConfigParser",
+	"ParsedConfig",
+	"parse_config_file",
+	"parse_config_content",
 	# Chirp TLV types
 	"ChirpPhaseOutput",
 	"ChirpPhaseBin",

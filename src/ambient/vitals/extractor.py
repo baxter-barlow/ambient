@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections import deque
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -15,7 +16,7 @@ from ambient.vitals.respiratory import RespiratoryRateEstimator
 
 if TYPE_CHECKING:
 	from ambient.processing.pipeline import ProcessedFrame
-	from ambient.sensor.frame import ChirpPhaseOutput, RadarFrame
+	from ambient.sensor.frame import ChirpPhaseOutput, RadarFrame, VitalSignsTLV
 
 logger = structlog.get_logger(__name__)
 
@@ -432,4 +433,258 @@ class ChirpVitalsProcessor:
 			"chirp_vitals_sample_rate_updated",
 			old_rate=old_rate,
 			new_rate=new_rate_hz,
+		)
+
+
+# =============================================================================
+# Multi-Patient Vital Signs Support (TI Algorithm)
+# =============================================================================
+
+
+@dataclass
+class PatientVitals:
+	"""Vital signs data for a single patient with history tracking.
+
+	Implements TI's multi-patient vital signs tracking algorithm with:
+	- Waveform history for visualization (150 samples)
+	- 10-sample median filter for heart rate smoothing
+	- Patient status detection based on breathing deviation
+	"""
+	patient_id: int
+	range_bin: int = 0
+
+	# Current values
+	heart_rate_bpm: float | None = None
+	breathing_rate_bpm: float | None = None
+	breathing_deviation: float = 0.0
+
+	# Status: 'present', 'holding_breath', 'not_detected'
+	status: str = "not_detected"
+
+	# Waveform history for plotting (deques for efficient appending)
+	heart_waveform: deque = field(default_factory=lambda: deque(maxlen=150))
+	breath_waveform: deque = field(default_factory=lambda: deque(maxlen=150))
+
+	# Heart rate median filter history (TI uses 10-sample median)
+	_hr_history: deque = field(default_factory=lambda: deque(maxlen=10))
+
+	# Breathing deviation threshold (from TI documentation)
+	BREATHING_DEVIATION_PRESENT = 0.02
+
+	def update_from_tlv(self, tlv: VitalSignsTLV) -> None:
+		"""Update patient data from parsed Vital Signs TLV.
+
+		Implements TI's status detection and median filtering algorithm.
+
+		Args:
+			tlv: Parsed VitalSignsTLV from frame
+		"""
+		self.range_bin = tlv.range_bin_index
+		self.breathing_deviation = tlv.breathing_deviation
+
+		# Extend waveforms with new samples
+		self.heart_waveform.extend(tlv.heart_waveform.tolist())
+		self.breath_waveform.extend(tlv.breathing_waveform.tolist())
+
+		# Update status based on breathing deviation (TI algorithm)
+		if tlv.breathing_deviation == 0:
+			self.status = "not_detected"
+			self.heart_rate_bpm = None
+			self.breathing_rate_bpm = None
+		elif tlv.breathing_deviation >= self.BREATHING_DEVIATION_PRESENT:
+			self.status = "present"
+			self.breathing_rate_bpm = tlv.breathing_rate if tlv.breathing_rate > 0 else None
+
+			# Median filter for heart rate (TI uses 10-sample window)
+			if tlv.heart_rate > 0:
+				self._hr_history.append(tlv.heart_rate)
+				self.heart_rate_bpm = self._compute_median(list(self._hr_history))
+		else:
+			self.status = "holding_breath"
+			self.breathing_rate_bpm = None
+			# Still update heart rate during breath hold
+			if tlv.heart_rate > 0:
+				self._hr_history.append(tlv.heart_rate)
+				self.heart_rate_bpm = self._compute_median(list(self._hr_history))
+
+	@staticmethod
+	def _compute_median(values: list[float]) -> float:
+		"""Compute median of values."""
+		if not values:
+			return 0.0
+		sorted_vals = sorted(values)
+		n = len(sorted_vals)
+		if n % 2 == 0:
+			return (sorted_vals[n // 2 - 1] + sorted_vals[n // 2]) / 2
+		return sorted_vals[n // 2]
+
+	def to_dict(self) -> dict:
+		"""Convert to dictionary for JSON serialization."""
+		return {
+			"patient_id": self.patient_id,
+			"status": self.status,
+			"heart_rate_bpm": self.heart_rate_bpm,
+			"breathing_rate_bpm": self.breathing_rate_bpm,
+			"breathing_deviation": self.breathing_deviation,
+			"range_bin": self.range_bin,
+			"heart_waveform": list(self.heart_waveform)[-15:],  # Last 15 samples
+			"breath_waveform": list(self.breath_waveform)[-15:],
+		}
+
+	def reset(self) -> None:
+		"""Reset patient state."""
+		self.range_bin = 0
+		self.heart_rate_bpm = None
+		self.breathing_rate_bpm = None
+		self.breathing_deviation = 0.0
+		self.status = "not_detected"
+		self.heart_waveform.clear()
+		self.breath_waveform.clear()
+		self._hr_history.clear()
+
+
+class MultiPatientVitalsManager:
+	"""Manages vital signs for multiple patients (TI algorithm).
+
+	TI's visualizer supports up to 2 patients simultaneously.
+	This manager handles:
+	- Patient slot allocation and tracking
+	- Status updates from Vital Signs TLV (1040)
+	- Aggregated vitals output for WebSocket broadcast
+
+	Example:
+		manager = MultiPatientVitalsManager(max_patients=2)
+
+		for frame in frame_stream:
+			if frame.vital_signs:
+				manager.update(frame.vital_signs)
+
+		# Get all patient vitals for broadcast
+		all_vitals = manager.get_all_vitals()
+	"""
+
+	MAX_PATIENTS = 2  # TI supports up to 2 patients
+
+	def __init__(self, max_patients: int = 2) -> None:
+		"""Initialize multi-patient manager.
+
+		Args:
+			max_patients: Maximum number of patients to track (1-2)
+		"""
+		self.max_patients = min(max_patients, self.MAX_PATIENTS)
+		self.patients: dict[int, PatientVitals] = {}
+
+		# Initialize patient slots
+		for i in range(self.max_patients):
+			self.patients[i] = PatientVitals(patient_id=i)
+
+		logger.info(
+			"multi_patient_manager_init",
+			max_patients=self.max_patients,
+		)
+
+	def configure(self, max_patients: int) -> None:
+		"""Configure from trackingCfg command.
+
+		Args:
+			max_patients: Number of patients to track (from config)
+		"""
+		new_max = min(max_patients, self.MAX_PATIENTS)
+
+		# Add new patient slots if needed
+		for i in range(self.max_patients, new_max):
+			if i not in self.patients:
+				self.patients[i] = PatientVitals(patient_id=i)
+
+		# Remove excess slots
+		for i in list(self.patients.keys()):
+			if i >= new_max:
+				del self.patients[i]
+
+		self.max_patients = new_max
+		logger.info(
+			"multi_patient_manager_configured",
+			max_patients=self.max_patients,
+		)
+
+	def update(self, tlv: VitalSignsTLV) -> None:
+		"""Update patient data from vital signs TLV.
+
+		Args:
+			tlv: Parsed VitalSignsTLV from frame
+		"""
+		patient_id = tlv.patient_id
+
+		if patient_id >= self.max_patients:
+			logger.warning(
+				"invalid_patient_id",
+				patient_id=patient_id,
+				max_patients=self.max_patients,
+			)
+			return
+
+		if patient_id not in self.patients:
+			self.patients[patient_id] = PatientVitals(patient_id=patient_id)
+
+		self.patients[patient_id].update_from_tlv(tlv)
+
+	def get_patient(self, patient_id: int) -> PatientVitals | None:
+		"""Get vitals for a specific patient.
+
+		Args:
+			patient_id: Patient ID (0 or 1)
+
+		Returns:
+			PatientVitals or None if not found
+		"""
+		return self.patients.get(patient_id)
+
+	def get_all_vitals(self) -> list[dict]:
+		"""Get vitals data for all patients (for WebSocket broadcast).
+
+		Returns:
+			List of patient vitals dictionaries
+		"""
+		result = []
+		for i in range(self.max_patients):
+			if i in self.patients:
+				result.append(self.patients[i].to_dict())
+		return result
+
+	def get_primary_vitals(self) -> VitalSigns | None:
+		"""Get vitals from the first detected patient.
+
+		This is useful for single-patient mode or backwards compatibility.
+
+		Returns:
+			VitalSigns from first patient with status != 'not_detected'
+		"""
+		for i in range(self.max_patients):
+			patient = self.patients.get(i)
+			if patient and patient.status != "not_detected":
+				return VitalSigns(
+					heart_rate_bpm=patient.heart_rate_bpm,
+					heart_rate_confidence=0.8 if patient.status == "present" else 0.5,
+					heart_rate_waveform=np.array(list(patient.heart_waveform), dtype=np.float32),
+					respiratory_rate_bpm=patient.breathing_rate_bpm,
+					respiratory_rate_confidence=0.8 if patient.status == "present" else 0.0,
+					respiratory_waveform=np.array(list(patient.breath_waveform), dtype=np.float32),
+					signal_quality=0.8 if patient.status == "present" else 0.3,
+					motion_detected=False,
+					source="firmware",
+				)
+		return None
+
+	def reset(self) -> None:
+		"""Reset all patient states."""
+		for patient in self.patients.values():
+			patient.reset()
+		logger.info("multi_patient_manager_reset")
+
+	@property
+	def active_patient_count(self) -> int:
+		"""Number of currently detected patients."""
+		return sum(
+			1 for p in self.patients.values()
+			if p.status != "not_detected"
 		)

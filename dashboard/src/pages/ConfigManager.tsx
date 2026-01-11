@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { configApi } from '../api/client'
 import Button from '../components/common/Button'
+import { showToast } from '../components/common/Toast'
 import type { ConfigProfile, ChirpParams, FrameParams } from '../types'
 import clsx from 'clsx'
 
@@ -215,8 +216,9 @@ export default function ConfigManager() {
 			if (!selected && list.length > 0) {
 				setSelected(list[0])
 			}
-		} catch {
-			// ignore
+		} catch (e) {
+			console.warn('Failed to load profiles:', e)
+			showToast('Failed to load configuration profiles', 'error')
 		}
 	}
 
@@ -238,16 +240,14 @@ export default function ConfigManager() {
 	const handleSave = async () => {
 		if (!editForm) return
 		try {
-			if (profiles.find(p => p.name === editForm.name)) {
-				await configApi.saveProfile(editForm)
-			} else {
-				await configApi.saveProfile(editForm)
-			}
+			await configApi.saveProfile(editForm)
 			await loadProfiles()
 			setEditing(false)
 			setSelected(editForm)
-		} catch {
-			// ignore
+			showToast(`Profile "${editForm.name}" saved`, 'success')
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : 'Unknown error'
+			showToast(`Failed to save profile: ${msg}`, 'error')
 		}
 	}
 
@@ -260,17 +260,20 @@ export default function ConfigManager() {
 			if (selected?.name === name) {
 				setSelected(profiles[0] || null)
 			}
-		} catch {
-			// ignore
+			showToast(`Profile "${name}" deleted`, 'info')
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : 'Unknown error'
+			showToast(`Failed to delete profile: ${msg}`, 'error')
 		}
 	}
 
 	const handleFlash = async (name: string) => {
 		try {
 			await configApi.flash(name)
-			alert('Configuration flashed to device')
-		} catch {
-			alert('Failed to flash configuration')
+			showToast(`Configuration "${name}" flashed to device`, 'success')
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : 'Unknown error'
+			showToast(`Failed to flash configuration: ${msg}`, 'error')
 		}
 	}
 

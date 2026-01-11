@@ -25,7 +25,9 @@ export default function DeviceStatus() {
 	const [now, setNow] = useState(Date.now())
 
 	useEffect(() => {
-		deviceApi.getPorts().then(setPorts).catch(() => {})
+		deviceApi.getPorts().then(setPorts).catch((e) => {
+			console.warn('Failed to fetch ports:', e)
+		})
 	}, [])
 
 	// Update "now" every second to refresh "last update" display
@@ -39,7 +41,9 @@ export default function DeviceStatus() {
 		if (!showMetrics) return
 
 		const fetchMetrics = () => {
-			deviceApi.getMetrics().then(setMetrics).catch(() => {})
+			deviceApi.getMetrics().then(setMetrics).catch((e) => {
+				console.warn('Failed to fetch metrics:', e)
+			})
 		}
 
 		fetchMetrics()
@@ -193,6 +197,8 @@ export default function DeviceStatus() {
 						<span className="text-base text-text-primary font-medium">Sensor Health</span>
 						<button
 							onClick={() => setShowMetrics(!showMetrics)}
+							aria-expanded={showMetrics}
+							aria-controls="performance-metrics"
 							className="text-sm text-text-secondary hover:text-text-primary"
 						>
 							{showMetrics ? 'Hide Metrics' : 'Show Metrics'}
@@ -249,6 +255,7 @@ export default function DeviceStatus() {
 									deviceApi.resetMetrics()
 									showToast('Metrics reset', 'info')
 								}}
+								aria-label="Reset performance metrics"
 								className="text-sm text-text-secondary hover:text-text-primary"
 							>
 								Reset

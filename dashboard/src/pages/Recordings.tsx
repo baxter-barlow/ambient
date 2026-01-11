@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { recordingApi } from '../api/client'
 import { useAppStore } from '../stores/appStore'
 import Button from '../components/common/Button'
+import { showToast } from '../components/common/Toast'
 import type { RecordingInfo, RecordingStatus } from '../types'
 
 export default function Recordings() {
@@ -20,8 +21,8 @@ export default function Recordings() {
 			])
 			setRecordings(list)
 			setStatus(st)
-		} catch {
-			// ignore
+		} catch (e) {
+			console.warn('Failed to load recordings:', e)
 		}
 	}
 
@@ -38,8 +39,9 @@ export default function Recordings() {
 			await recordingApi.start(recordingName.trim(), format)
 			setRecordingName('')
 			await loadRecordings()
-		} catch {
-			// ignore
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : 'Unknown error'
+			showToast(`Failed to start recording: ${msg}`, 'error')
 		} finally {
 			setLoading(false)
 		}
@@ -50,8 +52,9 @@ export default function Recordings() {
 		try {
 			await recordingApi.stop()
 			await loadRecordings()
-		} catch {
-			// ignore
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : 'Unknown error'
+			showToast(`Failed to stop recording: ${msg}`, 'error')
 		} finally {
 			setLoading(false)
 		}
@@ -62,8 +65,9 @@ export default function Recordings() {
 		try {
 			await recordingApi.delete(id)
 			await loadRecordings()
-		} catch {
-			// ignore
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : 'Unknown error'
+			showToast(`Failed to delete recording: ${msg}`, 'error')
 		}
 	}
 

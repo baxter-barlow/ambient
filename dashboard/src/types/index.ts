@@ -64,6 +64,84 @@ export interface VitalSigns {
 	hr_snr_db?: number
 	rr_snr_db?: number
 	phase_stability?: number
+	// Multi-patient support
+	patient_id?: number
+}
+
+// Multi-patient vital signs support (TI algorithm)
+export type PatientStatus = 'present' | 'holding_breath' | 'not_detected'
+
+export interface PatientVitals {
+	patient_id: number
+	status: PatientStatus
+	heart_rate_bpm: number | null
+	breathing_rate_bpm: number | null
+	breathing_deviation: number
+	range_bin: number
+	heart_waveform: number[]
+	breath_waveform: number[]
+}
+
+export interface MultiPatientVitals {
+	patients: PatientVitals[]
+	active_count: number
+	timestamp: number
+}
+
+// Tracked object from radar (TLV 250)
+export interface TrackedObject {
+	track_id: number
+	x: number
+	y: number
+	z: number
+	vx: number
+	vy: number
+	vz: number
+	ax: number
+	ay: number
+	az: number
+}
+
+// Compressed point in spherical coordinates (TLV 253)
+export interface CompressedPoint {
+	elevation: number  // degrees
+	azimuth: number    // degrees
+	doppler: number    // m/s
+	range: number      // meters
+	snr: number        // dB
+}
+
+// Point with age for persistence visualization
+export interface Point3DWithAge extends DetectedPoint {
+	age: number  // frames since detection
+	track_id?: number
+}
+
+// Presence detection result (TLV 254)
+export interface PresenceIndication {
+	presence_detected: boolean
+	confidence: number
+}
+
+// Fall detection result
+export interface FallDetectionResult {
+	fall_detected: boolean
+	confidence: number
+	timestamp: number
+	position?: { x: number; y: number; z: number }
+}
+
+// Quality metrics for vitals display
+export interface VitalsQualityMetrics {
+	hr_snr_db: number
+	rr_snr_db: number
+	hr_confidence: number
+	rr_confidence: number
+	phase_stability: number
+	motion_detected: boolean
+	patient_present: boolean
+	holding_breath: boolean
+	signal_quality: number  // 0-1 composite score
 }
 
 export interface WSMessage<T = unknown> {

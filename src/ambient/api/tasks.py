@@ -13,11 +13,11 @@ import numpy as np
 
 from ambient.config import get_config
 from ambient.utils.profiler import get_profiler
-from ambient.vitals.extractor import ChirpVitalsProcessor
+from ambient.vitals.extractor import ChirpVitalsProcessor, MultiPatientVitalsManager
 from ambient.vitals.extractor import VitalsConfig as ExtractorVitalsConfig
 from ambient.vitals.extractor import VitalSigns as VitalSignsData
 
-from .schemas import DetectedPoint, VitalSigns
+from .schemas import DetectedPoint, MultiPatientVitals, PatientStatus, PatientVitals, VitalSigns
 
 if TYPE_CHECKING:
 	from numpy.typing import NDArray
@@ -74,6 +74,105 @@ def _create_extractor_config() -> ExtractorVitalsConfig:
 		rr_freq_max_hz=vitals_cfg.rr_freq_max_hz,
 		motion_threshold=vitals_cfg.motion_threshold,
 	)
+
+
+@dataclass
+class VitalsContext:
+	"""Context for vitals processing in acquisition loop."""
+
+	extractor: object  # VitalsExtractor or ChirpVitalsProcessor
+	chirp_fallback: ChirpVitalsProcessor | None = None
+	multi_patient_manager: MultiPatientVitalsManager | None = None
+	debug_logged: bool = False
+
+
+def _process_frame_vitals(
+	frame,
+	processed,
+	ctx: VitalsContext,
+	frame_count: int,
+) -> VitalSignsData | None:
+	"""Extract vitals from a frame using the appropriate processor.
+
+	Handles firmware vitals, chirp phase processing, and fallback logic.
+	Updates ctx in-place for lazy initialization of fallback/multi-patient managers.
+	"""
+	# Firmware-provided vital signs (highest priority)
+	if frame.vital_signs is not None:
+		vitals = VitalSignsData.from_firmware(frame.vital_signs, frame.timestamp)
+		if ctx.multi_patient_manager is None:
+			ctx.multi_patient_manager = MultiPatientVitalsManager(max_patients=2)
+			logger.info("Created MultiPatientVitalsManager for TLV 1040 data")
+		ctx.multi_patient_manager.update(frame.vital_signs)
+		return vitals
+
+	# Chirp phase data processing
+	if frame.chirp_phase is not None:
+		if isinstance(ctx.extractor, ChirpVitalsProcessor):
+			vitals = ctx.extractor.process_frame(frame)
+			# Debug logging at 100-frame intervals
+			if AMBIENT_DEBUG and frame_count % 100 == 0:
+				_log_vitals_debug(vitals, ctx.extractor.buffer_fullness)
+			return vitals
+		else:
+			# Fallback: create ChirpVitalsProcessor on first use
+			if ctx.chirp_fallback is None:
+				extractor_config = _create_extractor_config()
+				ctx.chirp_fallback = ChirpVitalsProcessor(config=extractor_config)
+				logger.info(
+					f"Created fallback ChirpVitalsProcessor for chirp_phase data "
+					f"(sample_rate={extractor_config.sample_rate_hz}Hz)"
+				)
+			return ctx.chirp_fallback.process_frame(frame)
+
+	# ChirpVitalsProcessor without chirp_phase - skip vitals
+	if isinstance(ctx.extractor, ChirpVitalsProcessor):
+		return None
+
+	# VitalsExtractor with ProcessedFrame
+	return ctx.extractor.process_frame(processed)
+
+
+def _log_vitals_debug(vitals: VitalSignsData | None, buffer_fullness: float) -> None:
+	"""Log vitals debug info."""
+	motion = vitals.motion_detected if vitals else "N/A"
+	hr = vitals.heart_rate_bpm if vitals else None
+	hr_conf = vitals.heart_rate_confidence if vitals else 0
+	rr = vitals.respiratory_rate_bpm if vitals else None
+	rr_conf = vitals.respiratory_rate_confidence if vitals else 0
+	quality = vitals.signal_quality if vitals else 0
+	logger.info(
+		f"Vitals debug: buffer={buffer_fullness:.0%}, motion={motion}, "
+		f"HR={hr}({hr_conf:.0%}), RR={rr}({rr_conf:.0%}), quality={quality:.0%}"
+	)
+
+
+def _log_frame_tlvs(frame) -> None:
+	"""Log frame TLV debug info (once per session)."""
+	rp_len = len(frame.range_profile) if frame.range_profile is not None else 0
+	cfft_len = len(frame.chirp_complex_fft.iq_data) if frame.chirp_complex_fft else 0
+	has_phase = frame.chirp_phase is not None
+	is_chirp = has_phase or frame.chirp_complex_fft is not None
+	logger.info(
+		f"Frame TLVs: range_profile={rp_len}, chirp_complex_fft={cfft_len}, "
+		f"chirp_phase={'yes' if has_phase else 'no'}, is_chirp={is_chirp}"
+	)
+
+
+def _apply_frame_rate_reconciliation(
+	tracker: "FrameRateTracker",
+	configured_rate: float,
+	ctx: VitalsContext,
+) -> None:
+	"""Apply frame rate reconciliation to vitals processors."""
+	effective_rate = tracker.check_rate(configured_rate)
+	if effective_rate == configured_rate:
+		return
+
+	if isinstance(ctx.extractor, ChirpVitalsProcessor):
+		ctx.extractor.update_sample_rate(effective_rate)
+	elif ctx.chirp_fallback is not None:
+		ctx.chirp_fallback.update_sample_rate(effective_rate)
 
 
 class FrameRateTracker:
@@ -236,6 +335,39 @@ def vitals_to_dict(vitals, config: StreamingConfig | None = None) -> dict:
 	return result.model_dump()
 
 
+def multi_patient_vitals_to_dict(manager: MultiPatientVitalsManager) -> dict:
+	"""Convert MultiPatientVitalsManager state to serializable dict."""
+	patients = []
+	for patient_data in manager.get_all_vitals():
+		# Map status string to enum
+		status_str = patient_data.get("status", "not_detected")
+		status_map = {
+			"present": PatientStatus.PRESENT,
+			"holding_breath": PatientStatus.HOLDING_BREATH,
+			"not_detected": PatientStatus.NOT_DETECTED,
+		}
+		status = status_map.get(status_str, PatientStatus.NOT_DETECTED)
+
+		patient = PatientVitals(
+			patient_id=patient_data.get("patient_id", 0),
+			status=status,
+			heart_rate_bpm=patient_data.get("heart_rate_bpm"),
+			breathing_rate_bpm=patient_data.get("breathing_rate_bpm"),
+			breathing_deviation=patient_data.get("breathing_deviation", 0.0),
+			range_bin=patient_data.get("range_bin", 0),
+			heart_waveform=patient_data.get("heart_waveform", []),
+			breath_waveform=patient_data.get("breath_waveform", []),
+		)
+		patients.append(patient)
+
+	result = MultiPatientVitals(
+		patients=patients,
+		active_count=manager.active_patient_count,
+		timestamp=time.time(),
+	)
+	return result.model_dump(mode="json")
+
+
 async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 	"""Main acquisition loop running in background."""
 	device = state.device
@@ -247,9 +379,11 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 		logger.error("Acquisition started without sensor/pipeline/extractor")
 		return
 
+	# Timing state
 	last_vitals_broadcast = 0.0
 	last_status_broadcast = 0.0
-	status_interval = 1.0  # Broadcast device status at 1 Hz
+	last_multi_patient_broadcast = 0.0
+	status_interval = 1.0
 	vitals_interval = 1.0 / streaming_config.vitals_interval_hz
 	profiler = get_profiler()
 	app_config = get_config()
@@ -258,12 +392,8 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 	# Frame rate tracking for reconciliation
 	frame_rate_tracker = FrameRateTracker(window_size=100, tolerance=0.15)
 
-	# Fallback ChirpVitalsProcessor for when chirp_phase data is present
-	# but initial chirp detection failed (extractor is VitalsExtractor)
-	chirp_vitals_fallback: ChirpVitalsProcessor | None = None
-
-	# Debug logging state (once per session)
-	debug_logged = False
+	# Vitals processing context (manages fallback processors lazily)
+	vitals_ctx = VitalsContext(extractor=extractor)
 
 	logger.info(
 		f"Starting acquisition loop (vitals_interval={vitals_interval:.2f}s, "
@@ -282,61 +412,18 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 				profiler.frame_start()
 				frame_rate_tracker.record(time.time())
 
-				# Debug logging (once per session when AMBIENT_DEBUG is set)
-				if AMBIENT_DEBUG and not debug_logged:
-					rp_len = len(frame.range_profile) if frame.range_profile is not None else 0
-					cfft_len = len(frame.chirp_complex_fft.iq_data) if frame.chirp_complex_fft else 0
-					has_phase = frame.chirp_phase is not None
-					is_chirp = has_phase or frame.chirp_complex_fft is not None
-					logger.info(
-						f"Frame TLVs: range_profile={rp_len}, chirp_complex_fft={cfft_len}, "
-						f"chirp_phase={'yes' if has_phase else 'no'}, is_chirp={is_chirp}"
-					)
-					debug_logged = True
+				# Debug logging (once per session)
+				if AMBIENT_DEBUG and not vitals_ctx.debug_logged:
+					_log_frame_tlvs(frame)
+					vitals_ctx.debug_logged = True
 
-				# Process frame
+				# Process frame through pipeline
 				with profiler.measure("pipeline"):
 					processed = pipeline.process(frame)
 
-				# Use firmware vital signs if available, otherwise fall back to estimation
-				vitals: VitalSignsData | None = None
+				# Extract vitals
 				with profiler.measure("vitals"):
-					if frame.vital_signs is not None:
-						vitals = VitalSignsData.from_firmware(frame.vital_signs, frame.timestamp)
-					elif frame.chirp_phase is not None:
-						# Use ChirpVitalsProcessor for chirp phase data
-						if isinstance(extractor, ChirpVitalsProcessor):
-							vitals = extractor.process_frame(frame)
-							# Debug: log vitals state periodically
-							if AMBIENT_DEBUG and device._frame_count % 100 == 0:
-								buf_full = extractor.buffer_fullness
-								motion = vitals.motion_detected if vitals else "N/A"
-								hr = vitals.heart_rate_bpm if vitals else None
-								hr_conf = vitals.heart_rate_confidence if vitals else 0
-								rr = vitals.respiratory_rate_bpm if vitals else None
-								rr_conf = vitals.respiratory_rate_confidence if vitals else 0
-								quality = vitals.signal_quality if vitals else 0
-								logger.info(
-									f"Vitals debug: buffer={buf_full:.0%}, motion={motion}, "
-									f"HR={hr}({hr_conf:.0%}), RR={rr}({rr_conf:.0%}), quality={quality:.0%}"
-								)
-						else:
-							# Chirp phase present but extractor is VitalsExtractor
-							# Create fallback processor on first use with configured sample rate
-							if chirp_vitals_fallback is None:
-								extractor_config = _create_extractor_config()
-								chirp_vitals_fallback = ChirpVitalsProcessor(config=extractor_config)
-								logger.info(
-									f"Created fallback ChirpVitalsProcessor for chirp_phase data "
-									f"(sample_rate={extractor_config.sample_rate_hz}Hz)"
-								)
-							vitals = chirp_vitals_fallback.process_frame(frame)
-					elif isinstance(extractor, ChirpVitalsProcessor):
-						# ChirpVitalsProcessor but no chirp_phase in this frame - skip vitals
-						vitals = None
-					else:
-						# VitalsExtractor expects ProcessedFrame
-						vitals = extractor.process_frame(processed)
+					vitals = _process_frame_vitals(frame, processed, vitals_ctx, device._frame_count)
 
 				# Write to recording if active
 				with profiler.measure("recording"):
@@ -345,17 +432,19 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 						if vitals and vitals.is_valid():
 							state.recording.write_vitals(vitals)
 
-				# Broadcast frame data
+				# Broadcast data
 				with profiler.measure("broadcast"):
+					now = time.time()
+
+					# Always broadcast frame data
 					frame_msg = {
 						"type": "sensor_frame",
-						"timestamp": time.time(),
+						"timestamp": now,
 						"payload": frame_to_dict(frame, processed),
 					}
 					await ws_manager.broadcast("sensor", frame_msg)
 
 					# Broadcast vitals at lower rate
-					now = time.time()
 					if vitals and (now - last_vitals_broadcast) >= vitals_interval:
 						vitals_msg = {
 							"type": "vitals",
@@ -365,29 +454,31 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 						await ws_manager.broadcast("sensor", vitals_msg)
 						last_vitals_broadcast = now
 
-					# Broadcast device status at 1 Hz for live dashboard updates
-					if (now - last_status_broadcast) >= status_interval:
-						# Check frame rate reconciliation and apply to vitals processor
-						effective_rate = frame_rate_tracker.check_rate(configured_sample_rate)
-						if effective_rate != configured_sample_rate:
-							# Apply measured rate to active processor
-							if isinstance(extractor, ChirpVitalsProcessor):
-								extractor.update_sample_rate(effective_rate)
-							elif chirp_vitals_fallback is not None:
-								chirp_vitals_fallback.update_sample_rate(effective_rate)
+					# Broadcast multi-patient vitals if available
+					if vitals_ctx.multi_patient_manager is not None:
+						if (now - last_multi_patient_broadcast) >= vitals_interval:
+							multi_vitals_msg = {
+								"type": "multi_patient_vitals",
+								"timestamp": now,
+								"payload": multi_patient_vitals_to_dict(vitals_ctx.multi_patient_manager),
+							}
+							await ws_manager.broadcast("sensor", multi_vitals_msg)
+							last_multi_patient_broadcast = now
 
-						status = device.get_status()
+					# Broadcast device status at 1 Hz
+					if (now - last_status_broadcast) >= status_interval:
+						_apply_frame_rate_reconciliation(
+							frame_rate_tracker, configured_sample_rate, vitals_ctx
+						)
 						status_msg = {
 							"type": "device_state",
 							"timestamp": now,
-							"payload": status.model_dump(mode="json"),
+							"payload": device.get_status().model_dump(mode="json"),
 						}
 						await ws_manager.broadcast("sensor", status_msg)
 						last_status_broadcast = now
 
 				profiler.frame_complete()
-
-				# Yield to event loop
 				await asyncio.sleep(0)
 
 			except Exception as e:
@@ -401,7 +492,6 @@ async def acquisition_loop(state: AppState, ws_manager: ConnectionManager):
 	except Exception as e:
 		logger.error(f"Acquisition loop error: {e}")
 	finally:
-		# Log fps summary when debug is enabled
 		if AMBIENT_DEBUG:
 			measured = frame_rate_tracker.measured_rate
 			if measured is not None:

@@ -41,14 +41,14 @@ async def verify_ports(request: PortVerifyRequest):
 	data_result = PortStatus(path=request.data_port, status="unknown", details="")
 
 	# Test CLI port
+	import time
+	ser = None
 	try:
 		ser = serial.Serial(request.cli_port, 115200, timeout=2)
 		ser.reset_input_buffer()
 		ser.write(b"version\n")
-		import time
 		time.sleep(0.3)
 		response = ser.read(ser.in_waiting or 100)
-		ser.close()
 
 		if b"mmWave" in response or b"IWR" in response or b"SDK" in response:
 			cli_result.status = "ok"
@@ -65,11 +65,17 @@ async def verify_ports(request: PortVerifyRequest):
 	except Exception as e:
 		cli_result.status = "error"
 		cli_result.details = f"Unexpected error: {e}"
+	finally:
+		if ser is not None:
+			try:
+				ser.close()
+			except Exception:
+				pass
 
 	# Test Data port
+	ser = None
 	try:
 		ser = serial.Serial(request.data_port, 921600, timeout=1)
-		ser.close()
 		data_result.status = "ok"
 		data_result.details = "Port accessible at 921600 baud"
 	except serial.SerialException as e:
@@ -78,6 +84,12 @@ async def verify_ports(request: PortVerifyRequest):
 	except Exception as e:
 		data_result.status = "error"
 		data_result.details = f"Unexpected error: {e}"
+	finally:
+		if ser is not None:
+			try:
+				ser.close()
+			except Exception:
+				pass
 
 	# Determine overall status
 	if cli_result.status == "ok" and data_result.status == "ok":

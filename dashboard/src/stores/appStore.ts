@@ -1,5 +1,15 @@
 import { create } from 'zustand'
-import type { DeviceStatus, SensorFrame, VitalSigns, LogEntry } from '../types'
+import { LOG_RETENTION_SECONDS, MAX_LOG_ENTRIES } from '../constants'
+import type {
+	DeviceStatus,
+	SensorFrame,
+	VitalSigns,
+	LogEntry,
+	Point3DWithAge,
+	TrackedObject,
+	MultiPatientVitals,
+	PresenceIndication,
+} from '../types'
 
 // Extended history entry with quality metrics
 interface VitalsHistoryEntry {
@@ -45,6 +55,27 @@ interface AppState {
 	// WebSocket
 	wsConnected: boolean
 	setWsConnected: (connected: boolean) => void
+
+	// Point cloud with persistence
+	pointCloud: Point3DWithAge[]
+	pointCloudConfig: {
+		maxAge: number
+		maxPoints: number
+	}
+	appendPointCloud: (points: Point3DWithAge[]) => void
+	clearPointCloud: () => void
+
+	// Tracked objects
+	trackedObjects: TrackedObject[]
+	setTrackedObjects: (objects: TrackedObject[]) => void
+
+	// Multi-patient vitals
+	multiPatientVitals: MultiPatientVitals | null
+	setMultiPatientVitals: (vitals: MultiPatientVitals) => void
+
+	// Presence detection
+	presence: PresenceIndication | null
+	setPresence: (presence: PresenceIndication) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -85,8 +116,8 @@ export const useAppStore = create<AppState>((set) => ({
 
 		const history = [...state.vitalsHistory, entry]
 
-		// Keep 5 minutes of history
-		const cutoff = Date.now() / 1000 - 300
+		// Keep configurable duration of history
+		const cutoff = Date.now() / 1000 - LOG_RETENTION_SECONDS
 		const filtered = history.filter(h => h.timestamp > cutoff)
 
 		return { vitals, vitalsHistory: filtered }
@@ -103,7 +134,7 @@ export const useAppStore = create<AppState>((set) => ({
 	logs: [],
 	appendLog: (log) => set((state) => {
 		const logs = [...state.logs, log]
-		if (logs.length > 1000) logs.shift()
+		if (logs.length > MAX_LOG_ENTRIES) logs.shift()
 		return { logs }
 	}),
 	clearLogs: () => set({ logs: [] }),
@@ -111,4 +142,50 @@ export const useAppStore = create<AppState>((set) => ({
 	// WebSocket
 	wsConnected: false,
 	setWsConnected: (connected) => set({ wsConnected: connected }),
+
+	// Point cloud with persistence
+	pointCloud: [],
+	pointCloudConfig: {
+		maxAge: 15,    // Frames to retain points
+		maxPoints: 500, // Max points to store
+	},
+	appendPointCloud: (newPoints) => set((state) => {
+		if (state.isPaused) return state
+
+		// Age existing points
+		const aged = state.pointCloud.map(p => ({
+			...p,
+			age: p.age + 1,
+		}))
+
+		// Remove points that exceed max age
+		const filtered = aged.filter(p => p.age < state.pointCloudConfig.maxAge)
+
+		// Add new points with age 0
+		const combined = [...filtered, ...newPoints.map(p => ({ ...p, age: 0 }))]
+
+		// Limit total points
+		const limited = combined.slice(-state.pointCloudConfig.maxPoints)
+
+		return { pointCloud: limited }
+	}),
+	clearPointCloud: () => set({ pointCloud: [] }),
+
+	// Tracked objects
+	trackedObjects: [],
+	setTrackedObjects: (objects) => set((state) => {
+		if (state.isPaused) return state
+		return { trackedObjects: objects }
+	}),
+
+	// Multi-patient vitals
+	multiPatientVitals: null,
+	setMultiPatientVitals: (vitals) => set((state) => {
+		if (state.isPaused) return { multiPatientVitals: vitals }
+		return { multiPatientVitals: vitals }
+	}),
+
+	// Presence detection
+	presence: null,
+	setPresence: (presence) => set({ presence }),
 }))

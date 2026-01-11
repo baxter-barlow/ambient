@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { paramsApi } from '../api/client'
 import Button from '../components/common/Button'
+import { showToast } from '../components/common/Toast'
 import type { AlgorithmParams } from '../types'
 
 export default function AlgorithmTuning() {
@@ -20,8 +21,8 @@ export default function AlgorithmTuning() {
 			])
 			setParams(current)
 			setPresets(presetList.map(p => ({ name: p.name, description: p.description })))
-		} catch {
-			// ignore
+		} catch (e) {
+			console.warn('Failed to load algorithm parameters:', e)
 		}
 	}
 
@@ -36,8 +37,10 @@ export default function AlgorithmTuning() {
 		try {
 			await paramsApi.setCurrent(params)
 			setModified(false)
-		} catch {
-			// ignore
+			showToast('Parameters applied', 'success')
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : 'Unknown error'
+			showToast(`Failed to apply parameters: ${msg}`, 'error')
 		}
 	}
 
@@ -54,8 +57,9 @@ export default function AlgorithmTuning() {
 				setParams(found.params)
 				setModified(true)
 			}
-		} catch {
-			// ignore
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : 'Unknown error'
+			showToast(`Failed to load preset: ${msg}`, 'error')
 		}
 	}
 

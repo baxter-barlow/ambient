@@ -19,7 +19,9 @@ export default function TestRunner() {
 	const outputRef = useRef<HTMLDivElement>(null)
 
 	useEffect(() => {
-		testsApi.listModules().then(setModules).catch(() => {})
+		testsApi.listModules().then(setModules).catch((e) => {
+			console.warn('Failed to list test modules:', e)
+		})
 	}, [])
 
 	useEffect(() => {

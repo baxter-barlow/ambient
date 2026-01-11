@@ -9,6 +9,8 @@ import structlog
 from numpy.typing import NDArray
 from scipy import signal as sp_signal
 
+from ambient.vitals.heart_rate import _find_peak_with_smoothing
+
 logger = structlog.get_logger(__name__)
 
 
@@ -23,7 +25,11 @@ class RREstimationResult:
 
 
 class RespiratoryRateEstimator:
-	"""FFT-based respiratory rate estimation (0.1-0.6 Hz band)."""
+	"""FFT-based respiratory rate estimation (0.1-0.6 Hz band).
+
+	Implements TI's algorithm enhancement:
+	- 3-sample smoothed peak detection to reduce noise sensitivity
+	"""
 
 	def __init__(
 		self,
@@ -31,11 +37,13 @@ class RespiratoryRateEstimator:
 		freq_min_hz: float = 0.1,
 		freq_max_hz: float = 0.6,
 		fft_padding_factor: int = 4,
+		use_smoothed_peak: bool = True,
 	) -> None:
 		self.sample_rate_hz = sample_rate_hz
 		self.freq_min_hz = freq_min_hz
 		self.freq_max_hz = freq_max_hz
 		self.fft_padding_factor = fft_padding_factor
+		self.use_smoothed_peak = use_smoothed_peak
 		self._last_rr: float | None = None
 		self._rr_history: list[float] = []
 
@@ -54,24 +62,33 @@ class RespiratoryRateEstimator:
 		freqs = np.fft.rfftfreq(n_fft, 1.0 / self.sample_rate_hz)
 		magnitude = np.abs(fft_result)
 
+		# Find frequency band indices
 		freq_mask = (freqs >= self.freq_min_hz) & (freqs <= self.freq_max_hz)
-		band_freqs = freqs[freq_mask]
-		band_magnitude = magnitude[freq_mask]
+		band_indices = np.where(freq_mask)[0]
 
-		if len(band_magnitude) == 0:
+		if len(band_indices) == 0:
 			return RREstimationResult(rate_bpm=None, confidence=0.0)
 
-		peak_idx = np.argmax(band_magnitude)
-		peak_freq = band_freqs[peak_idx]
-		peak_mag = band_magnitude[peak_idx]
+		start_idx = band_indices[0]
+		end_idx = band_indices[-1] + 1
 
+		# Use 3-sample smoothed peak detection (TI algorithm) or simple argmax
+		if self.use_smoothed_peak:
+			peak_idx, _ = _find_peak_with_smoothing(magnitude, start_idx, end_idx)
+		else:
+			band_magnitude = magnitude[start_idx:end_idx]
+			peak_idx = start_idx + int(np.argmax(band_magnitude))
+
+		peak_freq = freqs[peak_idx]
+		peak_mag = magnitude[peak_idx]
 		rr_bpm = peak_freq * 60.0
 
-		# Calculate quality metrics
+		# Calculate quality metrics using the RR band
+		band_magnitude = magnitude[start_idx:end_idx]
 		mean_mag = np.mean(band_magnitude)
 		median_mag = np.median(band_magnitude)
 
-		# SNR: peak power vs noise floor
+		# SNR: peak power vs noise floor (25th percentile)
 		noise_floor = np.percentile(band_magnitude, 25)
 		snr_db = 20 * np.log10(peak_mag / noise_floor) if noise_floor > 0 else 0.0
 

@@ -72,7 +72,7 @@ class RadarSensor:
 
 		return {}
 
-	def connect(self):
+	def connect(self) -> None:
 		"""Open serial connections to the radar."""
 		if self.is_connected:
 			return
@@ -101,7 +101,7 @@ class RadarSensor:
 		time.sleep(0.1)
 		self._flush()
 
-	def disconnect(self):
+	def disconnect(self) -> None:
 		"""Close serial connections."""
 		self.stop()
 		if self._cli and self._cli.is_open:
@@ -204,7 +204,7 @@ class RadarSensor:
 		self._on_disconnect = on_disconnect
 		self._on_reconnect = on_reconnect
 
-	def _flush(self):
+	def _flush(self) -> None:
 		if self._cli:
 			self._cli.reset_input_buffer()
 			self._cli.reset_output_buffer()
@@ -222,7 +222,7 @@ class RadarSensor:
 
 		return self._cli.read(self._cli.in_waiting).decode("utf-8", errors="ignore")
 
-	def configure(self, config: str | Path | ChirpConfig | list[str]):
+	def configure(self, config: str | Path | ChirpConfig | list[str]) -> None:
 		"""Send configuration to the radar."""
 		if isinstance(config, ChirpConfig):
 			commands = config.to_commands()
@@ -244,7 +244,7 @@ class RadarSensor:
 				logger.error(f"Config error: {cmd} -> {response}")
 			time.sleep(0.02)
 
-	def start(self):
+	def start(self) -> None:
 		"""Start the sensor (send sensorStart command)."""
 		if not self.is_connected:
 			raise RuntimeError("Not connected")
@@ -253,7 +253,7 @@ class RadarSensor:
 		self._buffer.clear()
 		logger.info("Sensor started")
 
-	def stop(self):
+	def stop(self) -> None:
 		"""Stop the sensor."""
 		self._running = False
 		self._stop_event.set()

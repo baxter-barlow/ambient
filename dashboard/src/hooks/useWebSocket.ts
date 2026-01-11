@@ -1,13 +1,27 @@
 import { useEffect, useRef } from 'react'
 import { sensorWs, logsWs } from '../api/websocket'
 import { useAppStore } from '../stores/appStore'
-import type { WSMessage, DeviceStatus, SensorFrame, VitalSigns, LogEntry } from '../types'
+import type {
+	WSMessage,
+	DeviceStatus,
+	SensorFrame,
+	VitalSigns,
+	LogEntry,
+	TrackedObject,
+	Point3DWithAge,
+	MultiPatientVitals,
+	PresenceIndication,
+} from '../types'
 
 export function useSensorWebSocket() {
 	const setDeviceStatus = useAppStore(s => s.setDeviceStatus)
 	const appendFrame = useAppStore(s => s.appendFrame)
 	const setVitals = useAppStore(s => s.setVitals)
 	const setWsConnected = useAppStore(s => s.setWsConnected)
+	const appendPointCloud = useAppStore(s => s.appendPointCloud)
+	const setTrackedObjects = useAppStore(s => s.setTrackedObjects)
+	const setMultiPatientVitals = useAppStore(s => s.setMultiPatientVitals)
+	const setPresence = useAppStore(s => s.setPresence)
 
 	const handlersRef = useRef<(() => void)[]>([])
 
@@ -24,9 +38,29 @@ export function useSensorWebSocket() {
 			}),
 			sensorWs.on('sensor_frame', (msg: WSMessage<SensorFrame>) => {
 				appendFrame(msg.payload)
+				// Also extract point cloud from detected_points
+				if (msg.payload.detected_points && msg.payload.detected_points.length > 0) {
+					const points: Point3DWithAge[] = msg.payload.detected_points.map(p => ({
+						...p,
+						age: 0,
+					}))
+					appendPointCloud(points)
+				}
 			}),
 			sensorWs.on('vitals', (msg: WSMessage<VitalSigns>) => {
 				setVitals(msg.payload)
+			}),
+			sensorWs.on('tracked_objects', (msg: WSMessage<{ objects: TrackedObject[] }>) => {
+				setTrackedObjects(msg.payload.objects)
+			}),
+			sensorWs.on('point_cloud', (msg: WSMessage<{ points: Point3DWithAge[] }>) => {
+				appendPointCloud(msg.payload.points)
+			}),
+			sensorWs.on('multi_patient_vitals', (msg: WSMessage<MultiPatientVitals>) => {
+				setMultiPatientVitals(msg.payload)
+			}),
+			sensorWs.on('presence', (msg: WSMessage<PresenceIndication>) => {
+				setPresence(msg.payload)
 			}),
 		]
 
@@ -34,7 +68,16 @@ export function useSensorWebSocket() {
 			handlersRef.current.forEach(unsub => unsub())
 			sensorWs.disconnect()
 		}
-	}, [setDeviceStatus, appendFrame, setVitals, setWsConnected])
+	}, [
+		setDeviceStatus,
+		appendFrame,
+		setVitals,
+		setWsConnected,
+		appendPointCloud,
+		setTrackedObjects,
+		setMultiPatientVitals,
+		setPresence,
+	])
 }
 
 export function useLogsWebSocket() {

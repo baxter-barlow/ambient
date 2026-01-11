@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import clsx from 'clsx'
 
 interface Props {
@@ -7,7 +8,7 @@ interface Props {
 	size?: 'sm' | 'md'
 }
 
-export default function StatusIndicator({ status, label, pulse, size = 'md' }: Props) {
+export default memo(function StatusIndicator({ status, label, pulse, size = 'md' }: Props) {
 	return (
 		<div className="flex items-center gap-2">
 			<span className={clsx(
@@ -35,4 +36,4 @@ export default function StatusIndicator({ status, label, pulse, size = 'md' }: P
 			)}
 		</div>
 	)
-}
+})

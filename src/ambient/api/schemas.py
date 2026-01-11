@@ -89,6 +89,86 @@ class VitalSigns(BaseModel):
 	hr_snr_db: float = 0.0
 	rr_snr_db: float = 0.0
 	phase_stability: float = 0.0
+	# Multi-patient support
+	patient_id: int = 0
+
+
+class PatientStatus(str, Enum):
+	"""Patient detection status from TI algorithm."""
+	PRESENT = "present"
+	HOLDING_BREATH = "holding_breath"
+	NOT_DETECTED = "not_detected"
+
+
+class PatientVitals(BaseModel):
+	"""Vital signs for a single patient (TI multi-patient support)."""
+	patient_id: int
+	status: PatientStatus = PatientStatus.NOT_DETECTED
+	heart_rate_bpm: float | None = None
+	breathing_rate_bpm: float | None = None
+	breathing_deviation: float = 0.0
+	range_bin: int = 0
+	heart_waveform: list[float] = Field(default_factory=list)
+	breath_waveform: list[float] = Field(default_factory=list)
+
+
+class MultiPatientVitals(BaseModel):
+	"""Multi-patient vital signs container."""
+	patients: list[PatientVitals] = Field(default_factory=list)
+	active_count: int = 0
+	timestamp: float = Field(default_factory=time.time)
+
+
+class TrackedObject(BaseModel):
+	"""Tracked object from radar (TLV 250)."""
+	track_id: int
+	x: float
+	y: float
+	z: float
+	vx: float = 0.0
+	vy: float = 0.0
+	vz: float = 0.0
+	ax: float = 0.0
+	ay: float = 0.0
+	az: float = 0.0
+
+
+class CompressedPoint(BaseModel):
+	"""Compressed point in spherical coordinates (TLV 253)."""
+	elevation: float  # degrees
+	azimuth: float    # degrees
+	doppler: float    # m/s
+	range_m: float    # meters
+	snr: float = 0.0  # dB
+
+
+class PresenceIndication(BaseModel):
+	"""Presence detection result (TLV 254)."""
+	presence_detected: bool = False
+	confidence: float = 0.0
+
+
+class FallDetectionResult(BaseModel):
+	"""Fall detection result."""
+	fall_detected: bool = False
+	confidence: float = 0.0
+	timestamp: float = Field(default_factory=time.time)
+	x: float | None = None
+	y: float | None = None
+	z: float | None = None
+
+
+class VitalsQualityMetrics(BaseModel):
+	"""Detailed quality metrics for vitals display."""
+	hr_snr_db: float = 0.0
+	rr_snr_db: float = 0.0
+	hr_confidence: float = 0.0
+	rr_confidence: float = 0.0
+	phase_stability: float = 0.0
+	motion_detected: bool = False
+	patient_present: bool = False
+	holding_breath: bool = False
+	signal_quality: float = 0.0  # 0-1 composite score
 
 
 class WSMessage(BaseModel):

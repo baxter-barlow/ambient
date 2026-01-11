@@ -1,3 +1,4 @@
+import { WS_MAX_RECONNECT_ATTEMPTS, WS_RECONNECT_DELAY_MS } from '../constants'
 import type { WSMessage } from '../types'
 
 type MessageHandler<T = unknown> = (message: WSMessage<T>) => void
@@ -7,8 +8,8 @@ export class WebSocketClient {
 	private url: string
 	private handlers: Map<string, Set<MessageHandler<unknown>>> = new Map()
 	private reconnectAttempts = 0
-	private maxReconnectAttempts = 10
-	private reconnectDelay = 1000
+	private maxReconnectAttempts = WS_MAX_RECONNECT_ATTEMPTS
+	private reconnectDelay = WS_RECONNECT_DELAY_MS
 	private shouldReconnect = true
 	private onConnectChange?: (connected: boolean) => void
 
@@ -51,12 +52,12 @@ export class WebSocketClient {
 				try {
 					const message = JSON.parse(event.data) as WSMessage
 					this.dispatch(message)
-				} catch {
-					// Ignore parse errors
+				} catch (e) {
+					console.debug('WebSocket parse error:', e)
 				}
 			}
-		} catch {
-			// Connection failed, will retry
+		} catch (e) {
+			console.debug('WebSocket connection failed:', e)
 		}
 	}
 

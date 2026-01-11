@@ -21,9 +21,10 @@ from .schemas import (
 
 if TYPE_CHECKING:
 	from ambient.processing.pipeline import ProcessingPipeline
+	from ambient.sensor.frame import RadarFrame
 	from ambient.sensor.radar import RadarSensor
 	from ambient.storage.writer import HDF5Writer, ParquetWriter
-	from ambient.vitals.extractor import ChirpVitalsProcessor, VitalsExtractor
+	from ambient.vitals.extractor import ChirpVitalsProcessor, VitalSigns, VitalsExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,7 @@ class DeviceStateMachine:
 		DeviceState.ERROR: {DeviceState.DISCONNECTED},
 	}
 
-	def __init__(self):
+	def __init__(self) -> None:
 		self._state = DeviceState.DISCONNECTED
 		self._lock = Lock()
 		self._sensor: RadarSensor | None = None
@@ -151,7 +152,7 @@ class DeviceStateMachine:
 			logger.warning(f"Invalid transition: {self._state.value} -> {new_state.value}")
 			return False
 
-	def on_state_change(self, callback: Callable[[DeviceState], None]):
+	def on_state_change(self, callback: Callable[[DeviceState], None]) -> None:
 		"""Register callback for state changes."""
 		self._state_callbacks.append(callback)
 
@@ -320,12 +321,12 @@ class DeviceStateMachine:
 		logger.warning("Emergency stop triggered")
 		return await self.disconnect()
 
-	def record_frame(self):
+	def record_frame(self) -> None:
 		"""Record frame timing for rate calculation."""
 		self._frame_count += 1
 		self._frame_times.append(time.time())
 
-	def record_drop(self):
+	def record_drop(self) -> None:
 		"""Record dropped frame."""
 		self._dropped_frames += 1
 
@@ -333,7 +334,7 @@ class DeviceStateMachine:
 class RecordingManager:
 	"""Manages recording sessions."""
 
-	def __init__(self, data_dir: Path = Path("data")):
+	def __init__(self, data_dir: Path = Path("data")) -> None:
 		self.data_dir = data_dir
 		self.data_dir.mkdir(exist_ok=True)
 		self._writer: HDF5Writer | ParquetWriter | None = None
@@ -394,13 +395,13 @@ class RecordingManager:
 		self._recording_start = None
 		return recording_id
 
-	def write_frame(self, frame):
+	def write_frame(self, frame: "RadarFrame") -> None:
 		"""Write frame to recording."""
 		if self._writer and hasattr(self._writer, "write_frame"):
 			self._writer.write_frame(frame)
 			self._frame_count += 1
 
-	def write_vitals(self, vitals):
+	def write_vitals(self, vitals: "VitalSigns") -> None:
 		"""Write vitals to recording."""
 		if self._writer:
 			self._writer.write_vitals(vitals)
@@ -409,7 +410,7 @@ class RecordingManager:
 class AppState:
 	"""Global application state container."""
 
-	def __init__(self):
+	def __init__(self) -> None:
 		self.device = DeviceStateMachine()
 		self.recording = RecordingManager()
 		self.algorithm_params = AlgorithmParams()

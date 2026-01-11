@@ -72,6 +72,8 @@ export default function Logs() {
 							<button
 								key={level}
 								onClick={() => setFilter(level)}
+								aria-label={`Filter by ${level} level`}
+								aria-pressed={filter === level}
 								className={clsx(
 									'px-2.5 py-1 text-xs rounded transition-colors duration-150',
 									filter === level
@@ -90,6 +92,7 @@ export default function Logs() {
 						value={search}
 						onChange={e => setSearch(e.target.value)}
 						placeholder="Search..."
+						aria-label="Search logs"
 						className="bg-surface-3 border border-border rounded px-3 py-1.5 text-sm w-48 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-teal"
 					/>
 
@@ -112,6 +115,9 @@ export default function Logs() {
 			{/* Log viewer */}
 			<div
 				ref={containerRef}
+				role="log"
+				aria-label="Application logs"
+				aria-live="polite"
 				className="flex-1 bg-surface-2 border border-border rounded-card p-4 overflow-auto font-mono text-sm"
 			>
 				{filteredLogs.length === 0 ? (

@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { ButtonHTMLAttributes, ReactNode } from 'react'
+import { ButtonHTMLAttributes, ReactNode, memo } from 'react'
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 	variant?: 'primary' | 'secondary' | 'danger' | 'toggle'
@@ -8,7 +8,7 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 	children: ReactNode
 }
 
-export default function Button({
+export default memo(function Button({
 	variant = 'primary',
 	size = 'md',
 	active = false,
@@ -49,4 +49,4 @@ export default function Button({
 			{children}
 		</button>
 	)
-}
+})
