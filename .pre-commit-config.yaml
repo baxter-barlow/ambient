@@ -17,3 +17,24 @@ repos:
     rev: 23.11.0
     hooks:
       - id: black
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - numpy
+          - pydantic
+        args: [--ignore-missing-imports, --no-error-summary]
+        pass_filenames: false
+        files: ^src/ambient/
+
+  - repo: local
+    hooks:
+      - id: pytest-check
+        name: pytest quick check
+        entry: python -m pytest tests/ -x -q --tb=no
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

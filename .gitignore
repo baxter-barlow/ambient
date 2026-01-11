@@ -12,6 +12,9 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
+# Documentation artifacts
+*.pdf
+
 .env
 .venv/
 venv/
