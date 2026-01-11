@@ -23,7 +23,6 @@ import argparse
 import asyncio
 import json
 import logging
-import os
 import random
 import sys
 import time
@@ -36,8 +35,8 @@ import numpy as np
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from ambient.sensor.frame import DetectedPoint, FrameHeader, RadarFrame
 from ambient.processing.pipeline import ProcessingPipeline
+from ambient.sensor.frame import DetectedPoint, FrameHeader, RadarFrame
 from ambient.vitals.extractor import VitalsExtractor, VitalSigns
 
 logging.basicConfig(

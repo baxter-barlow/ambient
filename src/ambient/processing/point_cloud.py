@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import NDArray
 
 if TYPE_CHECKING:
-	from ambient.sensor.frame import CompressedPoint, DetectedPoint, RadarFrame
+	from ambient.sensor.frame import DetectedPoint, RadarFrame
 
 
 @dataclass

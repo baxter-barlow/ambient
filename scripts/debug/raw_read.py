@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Raw continuous read from both ports simultaneously."""
 
-import serial
 import time
-import threading
+
+import serial
 
 MAGIC = b'\x02\x01\x04\x03\x06\x05\x08\x07'
 

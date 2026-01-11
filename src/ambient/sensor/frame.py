@@ -105,7 +105,7 @@ class VitalSignsTLV:
 	Multi-patient format (TI 136-byte format):
 	- 2H: patient_id, range_bin
 	- 33f: breathing_deviation, heart_rate, breathing_rate,
-	       heart_waveform[15], breath_waveform[15]
+		heart_waveform[15], breath_waveform[15]
 
 	Single-patient format (192-byte format):
 	- 2H: range_bin, reserved
@@ -158,28 +158,28 @@ class VitalSignsTLV:
 		Supports two formats:
 
 		1. TI Multi-Patient Format (136 bytes):
-		   - uint16: patient_id
-		   - uint16: range_bin
-		   - float32: breathing_deviation
-		   - float32: heart_rate
-		   - float32: breathing_rate
-		   - float32[15]: heart_waveform
-		   - float32[15]: breath_waveform
-		   Total: 4 + 3*4 + 15*4 + 15*4 = 136 bytes
+			- uint16: patient_id
+			- uint16: range_bin
+			- float32: breathing_deviation
+			- float32: heart_rate
+			- float32: breathing_rate
+			- float32[15]: heart_waveform
+			- float32[15]: breath_waveform
+			Total: 4 + 3*4 + 15*4 + 15*4 = 136 bytes
 
 		2. Legacy Single-Patient Format (192 bytes):
-		   - uint16: range_bin_index
-		   - uint16: reserved
-		   - float32: breathDeviation
-		   - float32: heartDeviation
-		   - float32: breathRate
-		   - float32: heartRate
-		   - float32: breathConfidence
-		   - float32: heartConfidence
-		   - float32[20]: breathWaveform
-		   - float32[20]: heartWaveform
-		   - float32: unwrappedPhasePeak
-		   Total: 4 + 6*4 + 20*4 + 20*4 + 4 = 192 bytes
+			- uint16: range_bin_index
+			- uint16: reserved
+			- float32: breathDeviation
+			- float32: heartDeviation
+			- float32: breathRate
+			- float32: heartRate
+			- float32: breathConfidence
+			- float32: heartConfidence
+			- float32[20]: breathWaveform
+			- float32[20]: heartWaveform
+			- float32: unwrappedPhasePeak
+			Total: 4 + 6*4 + 20*4 + 20*4 + 4 = 192 bytes
 		"""
 		if len(data) < 136:
 			return None

@@ -533,7 +533,7 @@ def main() -> int:
 		total_vitals = sum(r.num_vitals for r in results)
 		total_duration = sum(r.duration_seconds for r in results)
 
-		print(f"\nValidation Summary")
+		print("\nValidation Summary")
 		print(f"  Files: {len(results)} ({valid} valid, {invalid} invalid)")
 		print(f"  Total frames: {total_frames}")
 		print(f"  Total vitals: {total_vitals}")

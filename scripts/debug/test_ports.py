@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Test both ports at various baud rates to find data stream."""
 
-import serial
 import time
+
+import serial
 
 MAGIC_WORD = b'\x02\x01\x04\x03\x06\x05\x08\x07'
 
@@ -105,7 +106,7 @@ while time.time() - start < 3:
         data = ser.read(ser.in_waiting)
         total += len(data)
         if MAGIC_WORD in data:
-            print(f"MAGIC WORD found in CLI port response!")
+            print("MAGIC WORD found in CLI port response!")
     time.sleep(0.05)
 
 print(f"CLI port after sensorStart: {total} bytes")

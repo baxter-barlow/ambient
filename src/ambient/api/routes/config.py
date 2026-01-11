@@ -5,7 +5,6 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any
 
 import aiofiles
 from fastapi import APIRouter, File, HTTPException, UploadFile

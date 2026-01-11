@@ -13,8 +13,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from ambient.sensor.radar import RadarSensor
 from ambient.sensor.config import SerialConfig
+from ambient.sensor.radar import RadarSensor
 
 CLI_PORT = "/dev/ttyUSB0"
 DATA_PORT = "/dev/ttyUSB1"
@@ -128,7 +128,7 @@ def main():
         elapsed = time.time() - start_time
         fps = frame_count / elapsed if elapsed > 0 else 0
 
-        print(f"\nResults:")
+        print("\nResults:")
         print(f"  Total frames: {frame_count}")
         print(f"  Frames with PHASE: {phase_count}")
         print(f"  Frame rate: {fps:.1f} FPS")

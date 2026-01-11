@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Find and test the data port after connecting second USB."""
 
+import time
+
 import serial
 import serial.tools.list_ports
-import time
 
 MAGIC = b'\x02\x01\x04\x03\x06\x05\x08\x07'
 
@@ -40,7 +41,7 @@ if xds_ports:
     xds_ports.sort()
     data_port = xds_ports[-1]  # Usually the higher-numbered one is data
 
-print(f"\nIdentified ports:")
+print("\nIdentified ports:")
 print(f"  CLI port:  {cli_port}")
 print(f"  Data port: {data_port}")
 
@@ -120,7 +121,7 @@ for baud in [921600, 460800, 115200]:
         print(f"  Received: {total} bytes, {frames} frames")
         if frames > 0:
             print(f"\n*** SUCCESS! Data port is {data_port} at {baud} baud ***")
-            print(f"\nUpdate radar.py to use:")
+            print("\nUpdate radar.py to use:")
             print(f"  cli_port = '{cli_port}'")
             print(f"  data_port = '{data_port}'")
             break

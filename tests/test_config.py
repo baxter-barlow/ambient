@@ -5,8 +5,6 @@ import os
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from ambient.config import (
 	APIConfig,
 	AppConfig,
@@ -296,6 +294,7 @@ class TestConfigPropagation:
 
 		# Reimport to pick up new config
 		import importlib
+
 		import ambient.api.tasks as tasks_module
 		importlib.reload(tasks_module)
 

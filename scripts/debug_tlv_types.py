@@ -7,13 +7,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from ambient.sensor.radar import RadarSensor
 from ambient.sensor.config import SerialConfig
 from ambient.sensor.frame import (
-    MAGIC_WORD, HEADER_SIZE,
-    TLV_CHIRP_COMPLEX_RANGE_FFT, TLV_CHIRP_TARGET_IQ, TLV_CHIRP_PHASE_OUTPUT,
-    TLV_CHIRP_PRESENCE, TLV_CHIRP_MOTION_STATUS, TLV_CHIRP_TARGET_INFO
+    HEADER_SIZE,
+    TLV_CHIRP_COMPLEX_RANGE_FFT,
+    TLV_CHIRP_MOTION_STATUS,
+    TLV_CHIRP_PHASE_OUTPUT,
+    TLV_CHIRP_PRESENCE,
+    TLV_CHIRP_TARGET_INFO,
+    TLV_CHIRP_TARGET_IQ,
 )
+from ambient.sensor.radar import RadarSensor
 
 TLV_NAMES = {
     1: "detected_points",
@@ -115,7 +119,7 @@ def main():
                     print(f"  Raw size: {len(frame.raw_data)} bytes")
                     print(f"  TLVs ({len(tlvs)}):")
                     for tlv_type, tlv_len in tlvs:
-                        name = TLV_NAMES.get(tlv_type, f"unknown")
+                        name = TLV_NAMES.get(tlv_type, "unknown")
                         print(f"    0x{tlv_type:04X} ({name}): {tlv_len} bytes")
 
         # Summary

@@ -12,8 +12,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from ambient.sensor.radar import RadarSensor
 from ambient.sensor.config import SerialConfig
+from ambient.sensor.radar import RadarSensor
 from ambient.vitals.extractor import ChirpVitalsProcessor, VitalsConfig
 
 CLI_PORT = "/dev/ttyUSB0"
@@ -112,7 +112,7 @@ def main():
         elapsed = time.time() - start_time
         fps = frame_count / elapsed if elapsed > 0 else 0
 
-        print(f"\nResults:")
+        print("\nResults:")
         print(f"  Duration: {elapsed:.1f} seconds")
         print(f"  Frames: {frame_count} ({fps:.1f} FPS)")
         print(f"  Vitals extracted: {vitals_count}")
@@ -120,7 +120,7 @@ def main():
         # Get final vitals
         final_vitals = vitals_processor.get_current_vitals()
         if final_vitals:
-            print(f"\nFinal estimates:")
+            print("\nFinal estimates:")
             if final_vitals.heart_rate_bpm is not None:
                 print(f"  Heart Rate: {final_vitals.heart_rate_bpm:.1f} BPM")
             if final_vitals.respiratory_rate_bpm is not None:

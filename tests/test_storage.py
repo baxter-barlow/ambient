@@ -20,6 +20,7 @@ from ambient.storage.writer import (
 )
 from ambient.vitals.extractor import VitalSigns
 
+
 @pytest.fixture
 def tmp_dir():
 	"""Create a temporary directory for test files."""
@@ -185,7 +186,7 @@ class TestSessionMetadata:
 class TestHDF5Writer:
 	def test_create_file(self, tmp_dir, sample_metadata):
 		path = tmp_dir / "test.h5"
-		with HDF5Writer(path, sample_metadata) as writer:
+		with HDF5Writer(path, sample_metadata):
 			pass  # Just open and close
 		assert path.exists()
 
@@ -272,7 +273,7 @@ class TestHDF5Writer:
 
 		with h5py.File(path, "r") as f:
 			assert f["vitals"]["source"][0] == 2  # estimated = 2
-			assert f["vitals"]["motion_detected"][0] == True
+			assert f["vitals"]["motion_detected"][0]
 
 	def test_source_mapping(self, tmp_dir):
 		path = tmp_dir / "test.h5"
@@ -400,7 +401,7 @@ class TestParquetWriter:
 		path = tmp_dir / "test.parquet"
 		with ParquetWriter(path) as writer:
 			result = writer.write_frame(sample_frame)
-			assert result == True  # Always returns True
+			assert result  # Always returns True
 			assert writer.metrics.frames_written == 0
 
 	def test_metrics_tracking(self, tmp_dir, sample_vitals_firmware):
@@ -544,7 +545,7 @@ class TestErrorHandling:
 	def test_parquet_empty_close(self, tmp_dir):
 		"""ParquetWriter should handle close with no data."""
 		path = tmp_dir / "test.parquet"
-		with ParquetWriter(path) as writer:
+		with ParquetWriter(path):
 			pass  # Write nothing
 
 		# File might not exist or be empty, both are acceptable

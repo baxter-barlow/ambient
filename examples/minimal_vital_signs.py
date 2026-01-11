@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Minimal vital signs monitoring example.
+"""Minimal vital signs monitoring.
 
-Connects to radar sensor and prints heart rate and respiratory rate.
-Usage: python examples/minimal_vital_signs.py
+Connects to radar and prints heart rate and respiratory rate.
 """
-from ambient import RadarSensor, ProcessingPipeline, VitalsExtractor
+from ambient import ProcessingPipeline, RadarSensor, VitalsExtractor
 
 sensor = RadarSensor()
 sensor.connect()
@@ -19,13 +18,13 @@ print("HR (BPM) | RR (BPM) | Quality")
 print("-" * 35)
 
 try:
-    for frame in sensor.stream():
-        processed = pipeline.process(frame)
-        vitals = extractor.process_frame(processed)
-        if vitals.is_valid():
-            print(f"{vitals.heart_rate_bpm:>7.1f} | {vitals.respiratory_rate_bpm:>7.1f} | {vitals.quality_summary()}")
+	for frame in sensor.stream():
+		processed = pipeline.process(frame)
+		vitals = extractor.process_frame(processed)
+		if vitals.is_valid():
+			print(f"{vitals.heart_rate_bpm:>7.1f} | {vitals.respiratory_rate_bpm:>7.1f} | {vitals.quality_summary()}")
 except KeyboardInterrupt:
-    pass
+	pass
 finally:
-    sensor.stop()
-    sensor.disconnect()
+	sensor.stop()
+	sensor.disconnect()

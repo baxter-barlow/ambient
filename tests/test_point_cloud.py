@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from unittest.mock import MagicMock
 
 import numpy as np
-import pytest
 
 from ambient.processing.point_cloud import (
     Point3D,

@@ -222,9 +222,11 @@ def info(cli_port: str, data_port: str) -> None:
 @click.option("--data-port", default="/dev/ttyUSB1", help="Data serial port")
 def status(cli_port: str, data_port: str) -> None:
 	"""Quick device status check."""
-	import serial
-	from ambient.api.state import detect_chirp_firmware
 	from pathlib import Path
+
+	import serial
+
+	from ambient.api.state import detect_chirp_firmware
 
 	cli_exists = Path(cli_port).exists()
 	data_exists = Path(data_port).exists()

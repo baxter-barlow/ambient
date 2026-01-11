@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 	from ambient.sensor.frame import RadarFrame
 	from ambient.sensor.radar import RadarSensor
 	from ambient.storage.writer import HDF5Writer, ParquetWriter
-	from ambient.vitals.extractor import ChirpVitalsProcessor, VitalSigns, VitalsExtractor
+	from ambient.vitals.extractor import ChirpVitalsProcessor, VitalsExtractor, VitalSigns
 
 logger = logging.getLogger(__name__)
 
@@ -395,13 +395,13 @@ class RecordingManager:
 		self._recording_start = None
 		return recording_id
 
-	def write_frame(self, frame: "RadarFrame") -> None:
+	def write_frame(self, frame: RadarFrame) -> None:
 		"""Write frame to recording."""
 		if self._writer and hasattr(self._writer, "write_frame"):
 			self._writer.write_frame(frame)
 			self._frame_count += 1
 
-	def write_vitals(self, vitals: "VitalSigns") -> None:
+	def write_vitals(self, vitals: VitalSigns) -> None:
 		"""Write vitals to recording."""
 		if self._writer:
 			self._writer.write_vitals(vitals)

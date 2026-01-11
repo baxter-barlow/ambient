@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Test UART data output configuration."""
 
-import serial
 import time
+
+import serial
 
 MAGIC_WORD = b'\x02\x01\x04\x03\x06\x05\x08\x07'
 

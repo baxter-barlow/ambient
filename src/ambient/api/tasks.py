@@ -160,7 +160,7 @@ def _log_frame_tlvs(frame) -> None:
 
 
 def _apply_frame_rate_reconciliation(
-	tracker: "FrameRateTracker",
+	tracker: FrameRateTracker,
 	configured_rate: float,
 	ctx: VitalsContext,
 ) -> None:

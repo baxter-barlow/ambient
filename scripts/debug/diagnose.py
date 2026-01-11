@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Diagnostic script to debug radar data acquisition issues."""
 
+import sys
+import time
+
 import serial
 import serial.tools.list_ports
-import time
-import sys
 
 MAGIC_WORD = b'\x02\x01\x04\x03\x06\x05\x08\x07'
 
@@ -123,7 +124,7 @@ def test_config_send(cli_port, config_path, baud=115200):
         ser.reset_input_buffer()
 
         errors = []
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith('%'):
@@ -230,7 +231,7 @@ def main():
         print("\n--- Checking CLI port for data ---")
         b2, f2 = test_data_port(cli_port, baud=115200, duration=3)
         if f2 > 0:
-            print(f"\nData found on CLI port! Use same port for both.")
+            print("\nData found on CLI port! Use same port for both.")
             data_port = cli_port
             bytes_recv, frames = b2, f2
 

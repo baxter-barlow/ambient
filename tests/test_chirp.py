@@ -9,8 +9,6 @@ from ambient.sensor.frame import (
 	HEADER_SIZE,
 	MAGIC_WORD,
 	TLV_CHIRP_PHASE_OUTPUT,
-	TLV_CHIRP_COMPLEX_RANGE_FFT,
-	TLV_CHIRP_TARGET_IQ,
 	ChirpComplexRangeFFT,
 	ChirpMotionStatus,
 	ChirpPhaseOutput,

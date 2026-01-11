@@ -3,9 +3,9 @@
 import numpy as np
 import pytest
 
+from ambient.sensor.config import SerialConfig
 from ambient.sensor.frame import DetectedPoint, FrameBuffer, FrameHeader, RadarFrame
 from ambient.sensor.radar import RadarSensor, SensorDisconnectedError
-from ambient.sensor.config import SerialConfig
 
 
 class TestFrameHeader:

@@ -5,7 +5,7 @@ import pytest
 
 from ambient.vitals.extractor import VitalsExtractor, VitalSigns
 from ambient.vitals.filters import BandpassFilter, ExponentialSmoother, MedianFilter
-from ambient.vitals.heart_rate import HeartRateEstimator, EstimationResult
+from ambient.vitals.heart_rate import HeartRateEstimator
 from ambient.vitals.respiratory import RespiratoryRateEstimator, RREstimationResult
 
 

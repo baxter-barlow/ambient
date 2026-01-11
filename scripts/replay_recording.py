@@ -29,16 +29,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from ambient.processing.pipeline import ProcessingPipeline
+from ambient.sensor.frame import DetectedPoint, FrameHeader, RadarFrame
 from ambient.storage.reader import DataReader, StoredFrame
 from ambient.storage.writer import SCHEMA_VERSION
-from ambient.processing.pipeline import ProcessingPipeline
 from ambient.vitals.extractor import VitalsExtractor
-from ambient.sensor.frame import DetectedPoint, FrameHeader, RadarFrame
 
 logging.basicConfig(
 	level=logging.INFO,

@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from unittest.mock import MagicMock
 
 import numpy as np
-import pytest
 
 from ambient.processing.fall_detection import (
     FallDetectionConfig,
@@ -372,7 +371,7 @@ class TestFallDetector:
         for i, (h, v) in enumerate(zip(heights, velocities)):
             obj.z = h
             obj.vz = v
-            result = detector.process_tracked_objects([obj], timestamp=base_time + 0.5 + i * 0.1)
+            detector.process_tracked_objects([obj], timestamp=base_time + 0.5 + i * 0.1)
 
         # Track history should show the pattern of a fall
         history = detector._track_histories[1]
@@ -496,7 +495,7 @@ class TestFallDetector:
             obj.vz = 0.0
             obj.vx = 0.0
             obj.vy = 0.0
-            result = detector.process_tracked_objects([obj], timestamp=base_time + 0.8)
+            detector.process_tracked_objects([obj], timestamp=base_time + 0.8)
 
             # Event should transition toward IMPACT_DETECTED or LYING_DOWN
             event = detector._active_events.get(1)
@@ -538,7 +537,7 @@ class TestFallDetector:
 
         # Person stands up (height > standing_height_min)
         obj = MockTrackedObject(track_id=1, z=1.4, vz=0.5)
-        result = detector.process_tracked_objects([obj], timestamp=base_time + 1.0)
+        detector.process_tracked_objects([obj], timestamp=base_time + 1.0)
 
         # Event should transition to RECOVERED and be completed
         assert 1 not in detector._active_events
